@@ -3,11 +3,13 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const { sequelize } = require('./models');
+const path = require('path');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+app.use(express.static(path.join(__dirname, '..', 'public')));
 // Middleware de bază
 app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:3000',

@@ -1,3 +1,4 @@
+
 module.exports = (sequelize, DataTypes) => {
     const User = sequelize.define('User', {
       id: {
@@ -31,6 +32,14 @@ module.exports = (sequelize, DataTypes) => {
       created_at: {
         type: DataTypes.DATE,
         defaultValue: DataTypes.NOW
+      },
+      avatar: {
+        type: DataTypes.STRING,
+        defaultValue: "/images/default-avatar.jpg"
+      },
+      phone: {
+        type: DataTypes.STRING,
+        allowNull: true
       }
     }, {
       tableName: 'users',

@@ -1,6 +1,73 @@
 const { User } = require('../models');
 const bcrypt = require('bcryptjs');
 
+exports.uploadAvatar = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
+    }
+
+    const userId = req.user.id;
+    const avatarUrl = `/images/avatars/${req.file.filename}`;
+
+    // Actualizează utilizatorul cu noul avatar
+    await User.update(
+      { avatar: avatarUrl },
+      { where: { id: userId } }
+    );
+
+    // Obține utilizatorul actualizat
+    const updatedUser = await User.findByPk(userId, {
+      attributes: { exclude: ['password'] }
+    });
+
+    // Formatează răspunsul
+    const formattedUser = {
+      id: updatedUser.id,
+      name: `${updatedUser.prenume} ${updatedUser.nume}`.trim(),
+      email: updatedUser.email,
+      avatar: updatedUser.avatar,
+      phone: updatedUser.phone || ''
+    };
+
+    res.json(formattedUser);
+  } catch (error) {
+    console.error('Error uploading avatar:', error);
+    res.status(500).json({ message: 'Error uploading avatar', error: error.message });
+  }
+};
+
+exports.changePassword = async (req, res) => {
+  try {
+    const userId = req.user.id; // ID-ul utilizatorului din token
+    const { oldPassword, newPassword } = req.body;
+
+    // Verificăm dacă utilizatorul există
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Verificăm parola veche
+    const isMatch = await bcrypt.compare(oldPassword, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ message: 'Old password is incorrect' });
+    }
+
+    // Hash noua parolă
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+    // Actualizăm parola utilizatorului
+    user.password = hashedPassword;
+    await user.save();
+
+    res.json({ message: 'Password changed successfully' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error changing password', error: error.message });
+  }
+};
+
 // Obține toți utilizatorii
 exports.getAllUsers = async (req, res) => {
   try {
@@ -54,31 +121,80 @@ exports.createUser = async (req, res) => {
 };
 
 // Actualizează un utilizator
-exports.updateUser = async (req, res) => {
+exports.updateUser  = async (req, res) => {
   try {
-    const userData = { ...req.body };
+    const userId = req.user.id; // Obține ID-ul din token
+    const { name, email, phone } = req.body;
     
-    // Dacă se actualizează parola, hash-o
-    if (userData.password) {
-      const salt = await bcrypt.genSalt(10);
-      userData.password = await bcrypt.hash(userData.password, salt);
-    }
+    // Separă numele complet în nume și prenume
+    const nameParts = name.split(' ');
+    const prenume = nameParts[0] || '';
+    const nume = nameParts.slice(1).join(' ') || '';
     
-    const updated = await User.update(userData, {
-      where: { id: req.params.id }
-    });
+    // Actualizează utilizatorul
+    const updated = await User.update(
+      {
+        nume: nume,
+        prenume: prenume,
+        email: email,
+        phone: phone
+      },
+      {
+        where: { id: userId }
+      }
+    );
     
     if (updated[0] === 0) {
       return res.status(404).json({ message: 'User not found' });
     }
     
-    const updatedUser = await User.findByPk(req.params.id, {
+    // Obține utilizatorul actualizat
+    const updatedUser = await User.findByPk(userId, {
       attributes: { exclude: ['password'] }
     });
     
-    res.json(updatedUser);
+    // Formatează datele pentru răspuns (pentru a se potrivi cu așteptările frontend-ului)
+    const formattedUser = {
+      id: updatedUser.id,
+      name: `${updatedUser.prenume} ${updatedUser.nume}`.trim(),
+      email: updatedUser.email,
+      avatar: updatedUser.avatar,
+      phone: updatedUser.phone || ''
+    };
+    
+    res.json(formattedUser);
   } catch (error) {
-    res.status(400).json({ message: 'Error updating user', error: error.message });
+    console.error('Error updating profile:', error);
+    res.status(400).json({ message: 'Error updating user profile', error: error.message });
+  }
+};
+
+exports.getUserProfile = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Găsește utilizatorul
+    const user = await User.findByPk(userId, {
+      attributes: { exclude: ['password'] }
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Formatează datele pentru răspuns
+    const formattedUser = {
+      id: user.id,
+      name: `${user.prenume} ${user.nume}`.trim(),
+      email: user.email,
+      avatar: user.avatar || '/images/default-avatar.jpg',
+      phone: user.phone || ''
+    };
+
+    res.json(formattedUser);
+  } catch (error) {
+    console.error('Error retrieving user profile:', error);
+    res.status(500).json({ message: 'Error retrieving user profile', error: error.message });
   }
 };
 

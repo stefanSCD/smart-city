@@ -30,6 +30,8 @@ const storage = multer.diskStorage({
 // Rute pentru utilizatori
 router.post('/avatar', authenticateToken, upload.single('avatar'), userController.uploadAvatar);
 router.put('/update', authenticateToken, userController.updateUser);
+router.get('/reports/recent', userController.getUserRecentReports);
+router.get('/notifications', userController.getUserNotifications);
 router.get('/profile', authenticateToken, userController.getUserProfile);
 router.post('/change-password', authenticateToken, userController.changePassword);
 router.get('/', authenticateToken, userController.getAllUsers);

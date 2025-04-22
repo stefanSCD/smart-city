@@ -7,6 +7,7 @@ const problemController = require('../controllers/problemController');
 router.get('/', problemController.getAllProblems);
 router.get('/:id', problemController.getProblemById);
 router.post('/', problemController.createProblem);
+router.post('/with-media', problemController.createProblemWithMedia); // Adăugat endpoint pentru încărcare cu media
 router.put('/:id', problemController.updateProblem);
 router.delete('/:id', problemController.deleteProblem);
 router.post('/assign', problemController.assignProblemToEmployee);

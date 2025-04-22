@@ -44,8 +44,15 @@ export const registerUser = async (userData) => {
 };
 
 export const logout = () => {
+  // Șterge token-ul din localStorage
   localStorage.removeItem('token');
+  
+  // Șterge orice alte date de sesiune
   localStorage.removeItem('user');
+  
+  // Forțează reîncărcarea paginii pentru a redirecționa către login
+  // sau poți folosi React Router pentru o experiență mai fluidă
+  window.location.href = '/login';
 };
 
 // Verifică dacă utilizatorul este autentificat

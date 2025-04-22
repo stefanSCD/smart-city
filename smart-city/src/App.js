@@ -6,12 +6,10 @@ import SignUp from './pages/Auth/SignUp';
 import UserDashboard from './components/dashboard/UserDashboard';
 import AdminDashboard from './components/dashboard/AdminDashboard'; 
 import EmployeeDashboard from './components/dashboard/EmployeeDashboard';
+// Importă componentul nou
+import ProtectedRoute from './components/ProtectedRoute';
+// Poți păstra și verificarea isAuthenticated pentru alte scopuri
 import { isAuthenticated } from './services/authService';
-
-
-const ProtectedRoute = ({ children }) => {
-  return isAuthenticated() ? children : <Navigate to="/login" />;
-};
 
 function App() {
   return (
@@ -19,12 +17,32 @@ function App() {
       <div className="App">
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<SignUp />} />
+          
+          {/* Rute protejate utilizând componentul ProtectedRoute */}
+          <Route path="/userDashboard" element={
+            <ProtectedRoute>
+              <UserDashboard />
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/adminDashboard" element={
+            <ProtectedRoute>
+              <AdminDashboard />
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/employeeDashboard" element={
+            <ProtectedRoute>
+              <EmployeeDashboard />
+            </ProtectedRoute>
+          } />
+          
           {/* Redirecționează de la pagina principală la login */}
           <Route path="/" element={<Navigate to="/login" />} />
-          <Route path="/signup" element={<SignUp />} />
-          <Route path="/userDashboard" element={<UserDashboard />} />
-          <Route path="/adminDashboard" element={<AdminDashboard />} />
-          <Route path="/employeeDashboard" element={<EmployeeDashboard />} />
+          
+          {/* Redirecționează orice altă rută necunoscută către login */}
+          <Route path="*" element={<Navigate to="/login" />} />
         </Routes>
       </div>
     </Router>

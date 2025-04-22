@@ -28,6 +28,7 @@ app.get('/', (req, res) => {
 // Încărcarea rutelor API
 try {
   // Încărcăm toate rutele
+  
   app.use('/api/users', require('./routes/userRoutes'));
   app.use('/api/problems', require('./routes/problemRoutes'));
   app.use('/api/employees', require('./routes/employeeRoutes'));

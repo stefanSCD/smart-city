@@ -1,4 +1,6 @@
-const API_URL = '/api/users';
+import axios from 'axios';
+// Ar trebui să fie ceva de genul:
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3000/api';
 
   export const getUserData = async () => {
     try {
@@ -87,29 +89,17 @@ const API_URL = '/api/users';
   };
 
 
-  export const getUserNotifications = async (unreadOnly = false) => {
+  // În userService.js
+  export const getUserNotifications = async (userId) => {
     try {
-      const url = unreadOnly 
-        ? `${API_URL}/notifications?unread=true` 
-        : `${API_URL}/notifications`;
-      
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-  
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to fetch notifications');
+      if (!userId) {
+        throw new Error('User ID required');
       }
-  
-      return await response.json();
+      const response = await axios.get(`${API_URL}/users/notifications?userId=${userId}`);
+      return response.data;
     } catch (error) {
-      console.error('Error fetching notifications:', error);
-      throw error;
+      console.error('Error retrieving notifications:', error);
+      return []; // Returnează un array gol în loc să arunce eroare
     }
   };
 
@@ -160,25 +150,17 @@ const API_URL = '/api/users';
     }
   };
 
-  export const getUserRecentReports = async (limit = 5) => {
+  // În userService.js
+  export const getUserRecentReports = async (userId) => {
     try {
-      const response = await fetch(`${API_URL}/reports/recent?limit=${limit}`, {
-        method: 'GET',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-  
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to fetch recent reports');
+      if (!userId) {
+        throw new Error('User ID required');
       }
-  
-      return await response.json();
+      const response = await axios.get(`${API_URL}/users/reports/recent?userId=${userId}`);
+      return response.data;
     } catch (error) {
       console.error('Error fetching recent reports:', error);
-      throw error;
+      return []; // Returnează un array gol în loc să arunce eroare
     }
   };
 

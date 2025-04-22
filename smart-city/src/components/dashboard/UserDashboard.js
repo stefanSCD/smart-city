@@ -1,5 +1,6 @@
 // src/components/dashboard/UserDashboard.js
 import React, { useState, useEffect } from 'react';
+import LocationMap from '../LocationMap';
 import { getProblems, createProblem } from '../../services/problemService';
 import { 
   Home, 
@@ -16,6 +17,7 @@ import {
   Settings,
   Zap
 } from 'lucide-react';
+import { logout } from '../../services/authService';
 import { 
   getUserData, 
   getUserNotifications, 
@@ -25,6 +27,7 @@ import {
   changePassword 
 } from '../../services/userService';
 const UserDashboard = () => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeSection, setActiveSection] = useState('dashboard');
   const [problemType, setProblemType] = useState('');
   const [reportStep, setReportStep] = useState(1);
@@ -60,6 +63,9 @@ const UserDashboard = () => {
     recentReports: [],
     notifications: []
   });
+  const handleSignOut = () => {
+    logout();
+  };
   
   useEffect(() => {
     const fetchUserData = async () => {
@@ -78,25 +84,67 @@ const UserDashboard = () => {
         setPhone(userData.phone || '');
         setUserData(userData);
         
-        // Încarcă notificările și rapoartele utilizatorului
-        const notifications = await getUserNotifications();
-        setUserNotifications(notifications);
-        
-        const recentReports = await getUserRecentReports();
-        setUserRecentReports(recentReports);
+        // Verifică dacă avem un ID de utilizator înainte de a încărca notificările
+        if (userData && userData.id) {
+          try {
+            // Încarcă notificările utilizatorului
+            const notifications = await getUserNotifications(userData.id);
+            setUserNotifications(notifications);
+            
+            // Încarcă rapoartele recente ale utilizatorului
+            const recentReports = await getUserRecentReports(userData.id);
+            setUserRecentReports(recentReports);
+          } catch (dataError) {
+            console.warn('Nu s-au putut încărca toate datele utilizatorului:', dataError);
+            // Setăm liste goale pentru a nu întrerupe aplicația
+            setUserNotifications([]);
+            setUserRecentReports([]);
+          }
+        } else {
+          console.warn('Nu s-au putut încărca datele utilizatorului: ID utilizator lipsă');
+          setUserNotifications([]);
+          setUserRecentReports([]);
+        }
         
         setUserDataLoading(false);
       } catch (error) {
         console.error('Eroare la încărcarea datelor utilizatorului:', error);
         setUserDataLoading(false);
+        // Setăm stări implicite pentru a nu întrerupe aplicația
+        setUserNotifications([]);
+        setUserRecentReports([]);
       }
     };
   
     fetchUserData();
+    const fetchProblems = async () => {
+      try {
+        setLoading(true);
+        const problemsData = await getProblems();
+        setProblems(problemsData);
+        setLoading(false);
+      } catch (error) {
+        console.error('Eroare la încărcarea problemelor:', error);
+        setLoading(false);
+      }
+    };
+    fetchProblems();
   }, []);
 
   const submitFastReport = async () => {
+    if (isSubmitting) return; // Evită trimiteri multiple
+    
+    if (!location) {
+      alert('Vă rugăm să permiteți accesul la locație pentru a continua.');
+      return;
+    }
+    
     try {
+      setIsSubmitting(true);
+      
+      // Obține ID-ul utilizatorului din datele autentificate
+      const userId = userData?.id || 1; // Folosește un ID implicit dacă nu avem utilizator
+      
       const problemData = {
         title: "Fast Report",
         description: "Fast report submitted via mobile app",
@@ -104,27 +152,20 @@ const UserDashboard = () => {
         location: location ? `${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}` : '',
         lat: location ? location.lat : null,
         long: location ? location.lng : null,
-        // Aici poți adăuga un câmp pentru tipul de raport, dacă backend-ul tău îl suportă
-        reportType: 'fast'
+        user_id: userId,
+        report_type: 'fast',
+        created_at: new Date()
       };
       
       // Adăugăm media dacă există
       if (uploadedMedia) {
-        const formData = new FormData();
-        formData.append('image', uploadedMedia);
-        formData.append('problemData', JSON.stringify(problemData));
-        
-        // Aici ar trebui să ai o funcție în serviciul tău care poate trimite FormData
-        // De exemplu: await uploadProblemWithMedia(formData);
-        
-        // Alternativ, poți modifica createProblem pentru a accepta un al doilea parametru pentru media
         await createProblem(problemData, uploadedMedia);
       } else {
         await createProblem(problemData);
       }
       
       // Afișează un mesaj de succes
-      alert(`Report submitted successfully!`);
+      alert('Raportul a fost trimis cu succes!');
       
       // Resetează formularul
       setActiveSection('dashboard');
@@ -135,9 +176,23 @@ const UserDashboard = () => {
       // Actualizează lista de probleme
       const updatedProblems = await getProblems();
       setProblems(updatedProblems);
+      
+      // Actualizează și rapoartele recente ale utilizatorului
+      try {
+        if (userData && userData.id) {
+          const updatedReports = await getUserRecentReports(userData.id);
+          setUserRecentReports(updatedReports);
+        } else {
+          console.warn('Nu s-au putut încărca rapoartele recente: User ID lipsă');
+        }
+      } catch (error) {
+        console.warn('Nu s-au putut încărca rapoartele recente:', error);
+      }
     } catch (error) {
-      console.error('Error submitting report:', error);
-      alert('Failed to submit report. Please try again.');
+      console.error('Eroare la trimiterea raportului:', error);
+      alert('Trimiterea raportului a eșuat. Vă rugăm să încercați din nou.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -234,6 +289,18 @@ const UserDashboard = () => {
   const handleMediaUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
+      // Verifică dimensiunea fișierului (max 10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        alert('Fișierul este prea mare. Dimensiunea maximă este de 10MB.');
+        return;
+      }
+      
+      // Verifică tipul fișierului
+      if (!file.type.match(/image\/(jpeg|jpg|png|gif)/) && !file.type.match(/video\/(mp4|webm|ogg)/)) {
+        alert('Doar fișierele imagine (JPEG, PNG, GIF) și video (MP4, WebM, OGG) sunt acceptate.');
+        return;
+      }
+      
       setUploadedMedia(file);
       const preview = URL.createObjectURL(file);
       setMediaPreview(preview);
@@ -264,7 +331,14 @@ const UserDashboard = () => {
   };
 
   const submitReport = async () => {
+    if (isSubmitting) return;
+    
     try {
+      setIsSubmitting(true);
+      
+      // Obține ID-ul utilizatorului din datele autentificate
+      const userId = userData?.id || 1; // Folosește un ID implicit dacă nu avem utilizator
+      
       const problemData = {
         title: problemType,
         description: description,
@@ -272,30 +346,22 @@ const UserDashboard = () => {
         location: location ? `${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}` : '',
         lat: location ? location.lat : null,
         long: location ? location.lng : null,
-        // Dacă ai un câmp pentru departament, ar trebui adăugat aici
+        user_id: userId,
+        report_type: 'detailed',
+        created_at: new Date()
       };
       
-      await createProblem(problemData);
+      // Adăugăm media dacă există
+      if (uploadedMedia) {
+        await createProblem(problemData, uploadedMedia);
+      } else {
+        await createProblem(problemData);
+      }
       
-      // Afișează un mesaj de succes
-      alert(`Report submitted successfully for ${problemType}!`);
-      
-      // Resetează formularul
-      setActiveSection('dashboard');
-      setReportStep(1);
-      setProblemType('');
-      setUploadedMedia(null);
-      setMediaPreview(null);
-      setLocation(null);
-      setLocationConfirmed(false);
-      setDescription('');
-      
-      // Actualizează lista de probleme
-      const updatedProblems = await getProblems();
-      setProblems(updatedProblems);
-    } catch (error) {
-      console.error('Error submitting report:', error);
-      alert('Failed to submit report. Please try again.');
+      // Reset and update as in the fast report function
+      // ...rest of your existing code
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -361,42 +427,42 @@ const UserDashboard = () => {
       </div>
       
       <div className="bg-white rounded-xl shadow-lg p-6">
-      <h2 className="text-xl font-semibold text-gray-800 mb-4">Recent Reports</h2>
-      {loading ? (
-        <p>Loading reports...</p>
-      ) : problems.length > 0 ? (
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {problems.map((problem) => (
-                <tr key={problem.id}>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{problem.title}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{problem.location}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {new Date(problem.created_at).toLocaleDateString()}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                      ${problem.status === 'completed' ? 'bg-green-100 text-green-800' : 
-                      problem.status === 'in progress' ? 'bg-blue-100 text-blue-800' : 
-                      'bg-yellow-100 text-yellow-800'}`}
-                    >
-                      {problem.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+  <h2 className="text-xl font-semibold text-gray-800 mb-4">Recent Reports</h2>
+  {loading ? (
+    <p>Loading reports...</p>
+  ) : userRecentReports.length > 0 ? (  // Folosește userRecentReports în loc de problems
+    <div className="overflow-x-auto">
+      <table className="min-w-full divide-y divide-gray-200">
+        <thead className="bg-gray-50">
+          <tr>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+          </tr>
+        </thead>
+        <tbody className="bg-white divide-y divide-gray-200">
+          {userRecentReports.map((problem) => (  // Folosește userRecentReports în loc de problems
+            <tr key={problem.id}>
+              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{problem.title}</td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{problem.location}</td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                {new Date(problem.created_at).toLocaleDateString()}
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap">
+                <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                  ${problem.status === 'completed' ? 'bg-green-100 text-green-800' : 
+                  problem.status === 'in progress' ? 'bg-blue-100 text-blue-800' : 
+                  'bg-yellow-100 text-yellow-800'}`}
+                >
+                  {problem.status}
+                </span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   ) : (
     <p className="text-gray-500">No reports yet.</p>
   )}
@@ -572,7 +638,7 @@ const UserDashboard = () => {
           </div>
         </div>
         
-        {/* Locație */}
+       {/* Locație */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Location</label>
           {!location ? (
@@ -584,12 +650,22 @@ const UserDashboard = () => {
               Get Current Location
             </button>
           ) : (
-            <div className="bg-gray-100 p-4 rounded-lg">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-gray-700">Latitude: {location.lat.toFixed(6)}</span>
-                <span className="text-gray-700">Longitude: {location.lng.toFixed(6)}</span>
+            <div className="space-y-4">
+              <div className="bg-gray-100 p-4 rounded-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-gray-700">Latitude: {location.lat.toFixed(6)}</span>
+                  <span className="text-gray-700">Longitude: {location.lng.toFixed(6)}</span>
+                </div>
+                <p className="text-xs text-gray-500">Your current location has been captured</p>
               </div>
-              <p className="text-xs text-gray-500">Your current location has been captured</p>
+              
+              {/* Harta */}
+              <div className="h-64 rounded-lg overflow-hidden border border-gray-300">
+                <LocationMap 
+                  location={location} 
+                  onLocationUpdate={(newLocation) => setLocation(newLocation)} 
+                />
+              </div>
             </div>
           )}
         </div>
@@ -641,87 +717,94 @@ const UserDashboard = () => {
             </div>
           </div>
         );
-      case 2:
-        return (
-          <div className="bg-white rounded-xl shadow-lg p-6">
-            <h2 className="text-xl font-semibold text-gray-800 mb-2">Upload Media & Location</h2>
-            <p className="text-gray-600 mb-6">Reporting: {problemType}</p>
-            
-            <div className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Upload Photo/Video</label>
-                <div className="flex items-center justify-center w-full">
-                  <label className="flex flex-col items-center justify-center w-full h-64 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
-                    {mediaPreview ? (
-                      <div className="w-full h-full flex items-center justify-center">
-                        {uploadedMedia?.type.startsWith('image/') ? (
-                          <img src={mediaPreview} alt="Preview" className="max-h-full max-w-full object-contain" />
-                        ) : (
-                          <video src={mediaPreview} controls className="max-h-full max-w-full"></video>
-                        )}
-                      </div>
+        case 2:
+          return (
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <h2 className="text-xl font-semibold text-gray-800 mb-2">Upload Media & Location</h2>
+              <p className="text-gray-600 mb-6">Reporting: {problemType}</p>
+              
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Upload Photo/Video</label>
+                  <div className="flex items-center justify-center w-full">
+                    <label className="flex flex-col items-center justify-center w-full h-64 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
+                      {/* Codul pentru upload media rămâne neschimbat */}
+                      {mediaPreview ? (
+                        <div className="w-full h-full flex items-center justify-center">
+                          {uploadedMedia?.type.startsWith('image/') ? (
+                            <img src={mediaPreview} alt="Preview" className="max-h-full max-w-full object-contain" />
+                          ) : (
+                            <video src={mediaPreview} controls className="max-h-full max-w-full"></video>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                          <Camera size={48} className="text-gray-400 mb-3" />
+                          <p className="mb-2 text-sm text-gray-500"><span className="font-semibold">Click to upload</span> or drag and drop</p>
+                          <p className="text-xs text-gray-500">PNG, JPG, or MP4 (MAX. 10MB)</p>
+                        </div>
+                      )}
+                      <input 
+                        type="file" 
+                        className="hidden" 
+                        accept="image/*,video/*" 
+                        onChange={handleMediaUpload} 
+                      />
+                    </label>
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Location</label>
+                  <div className="space-y-4">
+                    {!location ? (
+                      <button
+                        onClick={getLocation}
+                        className="flex items-center justify-center w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition"
+                      >
+                        <MapPin className="mr-2" size={20} />
+                        Get Current Location
+                      </button>
                     ) : (
-                      <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                        <Camera size={48} className="text-gray-400 mb-3" />
-                        <p className="mb-2 text-sm text-gray-500"><span className="font-semibold">Click to upload</span> or drag and drop</p>
-                        <p className="text-xs text-gray-500">PNG, JPG, or MP4 (MAX. 10MB)</p>
+                      <div>
+                        <div className="bg-gray-100 p-4 rounded-lg mb-4">
+                          <div className="flex items-center justify-between">
+                            <span className="text-gray-700">Latitude: {location.lat.toFixed(6)}</span>
+                            <span className="text-gray-700">Longitude: {location.lng.toFixed(6)}</span>
+                          </div>
+                        </div>
+                        
+                        {/* Înlocuiește mockup-ul de hartă cu componenta reală */}
+                        <div className="h-48 rounded-lg overflow-hidden border border-gray-300 mb-4">
+                          <LocationMap 
+                            location={location} 
+                            onLocationUpdate={(newLocation) => setLocation(newLocation)} 
+                          />
+                        </div>
+                        
+                        <button
+                          onClick={confirmLocation}
+                          className="flex items-center justify-center w-full py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg transition"
+                        >
+                          <Check className="mr-2" size={20} />
+                          Confirm Location
+                        </button>
                       </div>
                     )}
-                    <input 
-                      type="file" 
-                      className="hidden" 
-                      accept="image/*,video/*" 
-                      onChange={handleMediaUpload} 
-                    />
-                  </label>
+                  </div>
                 </div>
               </div>
               
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Location</label>
-                <div className="space-y-4">
-                  {!location ? (
-                    <button
-                      onClick={getLocation}
-                      className="flex items-center justify-center w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition"
-                    >
-                      <MapPin className="mr-2" size={20} />
-                      Get Current Location
-                    </button>
-                  ) : (
-                    <div>
-                      <div className="bg-gray-100 p-4 rounded-lg mb-4">
-                        <div className="flex items-center justify-between">
-                          <span className="text-gray-700">Latitude: {location.lat.toFixed(6)}</span>
-                          <span className="text-gray-700">Longitude: {location.lng.toFixed(6)}</span>
-                        </div>
-                      </div>
-                      <div className="h-48 bg-blue-100 rounded-lg flex items-center justify-center">
-                        <p className="text-gray-600">Map view would be displayed here</p>
-                      </div>
-                      <button
-                        onClick={confirmLocation}
-                        className="flex items-center justify-center w-full py-3 mt-4 bg-green-600 hover:bg-green-700 text-white rounded-lg transition"
-                      >
-                        <Check className="mr-2" size={20} />
-                        Confirm Location
-                      </button>
-                    </div>
-                  )}
-                </div>
+              <div className="flex justify-between mt-6">
+                <button
+                  onClick={resetReport}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition"
+                >
+                  Back
+                </button>
               </div>
             </div>
-            
-            <div className="flex justify-between mt-6">
-              <button
-                onClick={resetReport}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition"
-              >
-                Back
-              </button>
-            </div>
-          </div>
-        );
+          );
       case 3:
         return (
           <div className="bg-white rounded-xl shadow-lg p-6">
@@ -1039,7 +1122,10 @@ const UserDashboard = () => {
                 Settings
               </button>
               
-              <button className="w-full flex items-center px-4 py-3 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-md">
+              <button 
+                onClick={handleSignOut}
+                className="w-full flex items-center px-4 py-3 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-md"
+              >
                 <LogOut className="mr-3" size={20} />
                 Sign Out
               </button>
@@ -1103,6 +1189,7 @@ const UserDashboard = () => {
                     Settings
                   </button>
                   <button
+                    onClick={handleSignOut}
                     className="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50"
                   >
                     Sign Out

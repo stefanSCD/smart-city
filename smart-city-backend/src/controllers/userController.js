@@ -1,7 +1,6 @@
-const { User } = require('../models');
+// Importuri corecte la începutul fișierului
+const { User, Problem, Notification } = require('../models');
 const bcrypt = require('bcryptjs');
-
-
 
 exports.uploadAvatar = async (req, res) => {
   try {
@@ -122,42 +121,35 @@ exports.createUser = async (req, res) => {
   }
 };
 
-// În userController.js
+// Obține rapoartele recente ale unui utilizator
 exports.getUserRecentReports = async (req, res) => {
   try {
-    console.log('Starting getUserRecentReports with userId:', req.query.userId);
-    
-    const userId = req.query.userId;
+    const { userId } = req.query;
+    console.log(`Starting getUserRecentReports with userId: ${userId}`);
+
     if (!userId) {
-      return res.status(400).json({ message: 'User ID required' });
+      return res.status(400).json({ error: 'User ID is required' });
     }
-    
-    const { User, Problem } = require('../models');
-    
-    // Verifică dacă utilizatorul există
-    const user = await User.findByPk(userId);
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
-    }
-    
-    // Obține rapoartele recente ale utilizatorului
+
+    // Modificarea este aici - folosește "createdAt" în loc de "created_at" pentru ORDER BY
     const recentReports = await Problem.findAll({
-      where: { user_id: userId },
-      order: [['created_at', 'DESC']],
+      where: {
+        reported_by: userId
+      },
+      order: [
+        ['createdAt', 'DESC'] // Folosim createdAt în loc de created_at
+      ],
       limit: 5
     });
-    
-    console.log(`Found ${recentReports.length} recent reports for user ${userId}`);
-    
-    res.json(recentReports);
+
+    return res.status(200).json(recentReports);
   } catch (error) {
     console.error('Error in getUserRecentReports:', error);
-    res.status(500).json({ message: 'Error fetching recent reports', error: error.message });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 };
-
 // Actualizează un utilizator
-exports.updateUser  = async (req, res) => {
+exports.updateUser = async (req, res) => {
   try {
     const userId = req.user.id; // Obține ID-ul din token
     const { name, email, phone } = req.body;
@@ -205,7 +197,7 @@ exports.updateUser  = async (req, res) => {
   }
 };
 
-// În userController.js
+// Obține notificările unui utilizator
 exports.getUserNotifications = async (req, res) => {
   try {
     console.log('Starting getUserNotifications with userId:', req.query.userId);
@@ -214,8 +206,6 @@ exports.getUserNotifications = async (req, res) => {
     if (!userId) {
       return res.status(400).json({ message: 'User ID required' });
     }
-    
-    const { User, Notification } = require('../models');
     
     // Verifică dacă utilizatorul există
     const user = await User.findByPk(userId);
@@ -239,6 +229,7 @@ exports.getUserNotifications = async (req, res) => {
   }
 };
 
+// Obține profilul unui utilizator
 exports.getUserProfile = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -288,17 +279,21 @@ exports.deleteUser = async (req, res) => {
 // Obține problemele unui utilizator
 exports.getUserProblems = async (req, res) => {
   try {
-    const user = await User.findByPk(req.params.id, {
-      include: [{ model: Problem }],
-      attributes: { exclude: ['password'] }
+    const userId = req.params.id;
+    
+    // Obține problemele utilizatorului direct
+    const problems = await Problem.findAll({
+      where: { reported_by: userId }, // Folosește numele corect al coloanei
+      order: [['created_at', 'DESC']]
     });
     
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+    if (!problems) {
+      return res.status(404).json({ message: 'No problems found for this user' });
     }
     
-    res.json(user.Problems);
+    res.json(problems);
   } catch (error) {
+    console.error('Error retrieving user problems:', error);
     res.status(500).json({ message: 'Error retrieving user problems', error: error.message });
   }
 };

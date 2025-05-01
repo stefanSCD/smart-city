@@ -1,42 +1,50 @@
-// src/services/problemService.js
-import axios from 'axios';
+// src/services/problemService.js - versiune complet corectată
+import { api } from './authService';
+const API_URL = 'http://localhost:3001/api';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
-
-// Get all problems
 export const getProblems = async () => {
   try {
-    const response = await axios.get(`${API_URL}/problems`);
+    console.log('Fetching problems from:', `${API_URL}/problems`);
+    const response = await api.get('/problems');
     return response.data;
   } catch (error) {
     console.error('Error fetching problems:', error);
+    if (error.response) {
+      console.error('Response data:', error.response.data);
+      console.error('Response status:', error.response.status);
+    }
     throw error;
   }
 };
 
-// Get problem by ID
-export const getProblemById = async (id) => {
-  try {
-    const response = await axios.get(`${API_URL}/problems/${id}`);
-    return response.data;
-  } catch (error) {
-    console.error(`Error fetching problem ${id}:`, error);
-    throw error;
-  }
-};
-
-// Create a new problem
+// Pentru createProblem, poți încerca să folosești o rută alternativă în cazul în care există probleme cu ruta principală:
 export const createProblem = async (problemData, mediaFile = null) => {
   try {
-    // If we have a media file, we need to use FormData
+    // Convertim câmpurile numerice
+    if (problemData.latitude && typeof problemData.latitude === 'string') {
+      problemData.latitude = parseFloat(problemData.latitude);
+    }
+    if (problemData.longitude && typeof problemData.longitude === 'string') {
+      problemData.longitude = parseFloat(problemData.longitude);
+    }
+    
+    console.log('Creating problem with data:', problemData);
+    
     if (mediaFile) {
       const formData = new FormData();
-      formData.append('image', mediaFile);
+      formData.append('media', mediaFile);
       
-      // Add all problem data as JSON string
-      formData.append('problemData', JSON.stringify(problemData));
+      Object.keys(problemData).forEach(key => {
+        if (typeof problemData[key] === 'object' && problemData[key] !== null) {
+          formData.append(key, JSON.stringify(problemData[key]));
+        } else {
+          formData.append(key, problemData[key]);
+        }
+      });
       
-      const response = await axios.post(`${API_URL}/problems/with-media`, formData, {
+      console.log('Sending problem with media to:', `${API_URL}/problems`);
+      
+      const response = await api.post('/problems', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         }
@@ -44,20 +52,35 @@ export const createProblem = async (problemData, mediaFile = null) => {
       
       return response.data;
     } else {
-      // Regular JSON request without media
-      const response = await axios.post(`${API_URL}/problems`, problemData);
+      console.log('Sending problem without media to:', `${API_URL}/problems`);
+      const response = await api.post('/problems', problemData);
       return response.data;
     }
   } catch (error) {
     console.error('Error creating problem:', error);
+    if (error.response) {
+      console.error('Response data:', error.response.data);
+      console.error('Response status:', error.response.status);
+    }
+    throw error;
+  }
+};
+// Obține o problemă după ID
+export const getProblemById = async (id) => {
+  try {
+    const response = await api.get(`/problems/${id}`);
+    return response.data;
+  } catch (error) {
+    console.error(`Error fetching problem ${id}:`, error);
     throw error;
   }
 };
 
-// Update a problem
+
+// Actualizează o problemă
 export const updateProblem = async (id, problemData) => {
   try {
-    const response = await axios.put(`${API_URL}/problems/${id}`, problemData);
+    const response = await api.put(`/problems/${id}`, problemData);
     return response.data;
   } catch (error) {
     console.error(`Error updating problem ${id}:`, error);
@@ -65,10 +88,10 @@ export const updateProblem = async (id, problemData) => {
   }
 };
 
-// Delete a problem
+// Șterge o problemă
 export const deleteProblem = async (id) => {
   try {
-    await axios.delete(`${API_URL}/problems/${id}`);
+    await api.delete(`/problems/${id}`);
     return true;
   } catch (error) {
     console.error(`Error deleting problem ${id}:`, error);
@@ -76,17 +99,60 @@ export const deleteProblem = async (id) => {
   }
 };
 
-// Assign problem to employee
-export const assignProblemToEmployee = async (problemId, employeeId, gravitate) => {
+// Asignează o problemă unui angajat
+export const assignProblemToEmployee = async (problemId, userId) => {
   try {
-    const response = await axios.post(`${API_URL}/problems/assign`, {
-      problem_id: problemId,
-      employee_id: employeeId,
-      gravitate
+    const response = await api.post(`/problems/${problemId}/assign`, {
+      user_id: userId
     });
     return response.data;
   } catch (error) {
     console.error('Error assigning problem:', error);
     throw error;
   }
+};
+
+// Actualizează statusul unei probleme
+export const updateProblemStatus = async (problemId, status) => {
+  try {
+    const response = await api.put(`/problems/${problemId}/status`, { status });
+    return response.data;
+  } catch (error) {
+    console.error('Error updating problem status:', error);
+    throw error;
+  }
+};
+
+// Adaugă un comentariu la o problemă
+export const addProblemComment = async (problemId, comment) => {
+  try {
+    const response = await api.post(`/problems/${problemId}/comments`, { comment });
+    return response.data;
+  } catch (error) {
+    console.error('Error adding problem comment:', error);
+    throw error;
+  }
+};
+
+// Obține toate problemele asignate unui angajat
+export const getEmployeeProblems = async (userId) => {
+  try {
+    const response = await api.get(`/problems/assigned/${userId}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching employee problems:', error);
+    return [];
+  }
+};
+
+export default {
+  getProblems,
+  getProblemById,
+  createProblem,
+  updateProblem,
+  deleteProblem,
+  assignProblemToEmployee,
+  updateProblemStatus,
+  addProblemComment,
+  getEmployeeProblems
 };

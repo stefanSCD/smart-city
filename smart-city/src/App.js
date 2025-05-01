@@ -1,50 +1,95 @@
+// src/App.js
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import './App.css';
-import Login from './pages/Auth/Login';
-import SignUp from './pages/Auth/SignUp';
+
+// Componente de autentificare
+import LoginForm from './components/auth/LoginForm';
+import SignUpForm from './components/auth/SignUpForm';
+
+// Dashboard-uri specifice rolurilor
 import UserDashboard from './components/dashboard/UserDashboard';
-import AdminDashboard from './components/dashboard/AdminDashboard'; 
 import EmployeeDashboard from './components/dashboard/EmployeeDashboard';
-// Importă componentul nou
+import AdminDashboard from './components/dashboard/AdminDashboard';
+
+// Componenta pentru rute protejate
 import ProtectedRoute from './components/ProtectedRoute';
-// Poți păstra și verificarea isAuthenticated pentru alte scopuri
-import { isAuthenticated } from './services/authService';
+
+// Alte componente
+import LocationMap from './components/LocationMap';
+import { getUserType, isAuthenticated } from './services/authService';
 
 function App() {
+  // Funcție pentru a redirecționa utilizatorul la dashboard-ul corespunzător în funcție de rol
+  const redirectToDashboard = () => {
+    if (!isAuthenticated()) {
+      return <Navigate to="/login" />;
+    }
+    
+    const userType = getUserType();
+    
+    switch(userType) {
+      case 'admin':
+        return <Navigate to="/admin/dashboard" />;
+      case 'employee':
+        return <Navigate to="/employee/dashboard" />;
+      default:
+        return <Navigate to="/userDashboard" />;
+    }
+  };
+
   return (
     <Router>
-      <div className="App">
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<SignUp />} />
-          
-          {/* Rute protejate utilizând componentul ProtectedRoute */}
-          <Route path="/userDashboard" element={
+      <Routes>
+        {/* Redirecționare de la ruta principală către dashboard */}
+        <Route path="/" element={redirectToDashboard()} />
+        
+        {/* Rute de autentificare accesibile public */}
+        <Route path="/login" element={<LoginForm />} />
+        <Route path="/signup" element={<SignUpForm />} />
+        
+        {/* Dashboard utilizator normal - accesibil pentru toți utilizatorii autentificați */}
+        <Route
+          path="/userDashboard/*"
+          element={
             <ProtectedRoute>
               <UserDashboard />
             </ProtectedRoute>
-          } />
-          
-          <Route path="/adminDashboard" element={
-            <ProtectedRoute>
-              <AdminDashboard />
-            </ProtectedRoute>
-          } />
-          
-          <Route path="/employeeDashboard" element={
-            <ProtectedRoute>
+          }
+        />
+        
+        {/* Dashboard angajat - accesibil doar pentru angajați și admin */}
+        <Route
+          path="/employee/dashboard/*"
+          element={
+            <ProtectedRoute allowedRoles={['employee', 'admin']}>
               <EmployeeDashboard />
             </ProtectedRoute>
-          } />
-          
-          {/* Redirecționează de la pagina principală la login */}
-          <Route path="/" element={<Navigate to="/login" />} />
-          
-          {/* Redirecționează orice altă rută necunoscută către login */}
-          <Route path="*" element={<Navigate to="/login" />} />
-        </Routes>
-      </div>
+          }
+        />
+        
+        {/* Dashboard administrator - accesibil doar pentru admin */}
+        <Route
+          path="/admin/dashboard/*"
+          element={
+            <ProtectedRoute allowedRoles="admin">
+              <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
+        
+        {/* Hartă locație - accesibilă pentru toți utilizatorii autentificați */}
+        <Route
+          path="/map"
+          element={
+            <ProtectedRoute>
+              <LocationMap />
+            </ProtectedRoute>
+          }
+        />
+        
+        {/* Rută pentru pagini care nu există - redirecționare către dashboard */}
+        <Route path="*" element={redirectToDashboard()} />
+      </Routes>
     </Router>
   );
 }

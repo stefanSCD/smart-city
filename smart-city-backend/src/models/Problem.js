@@ -1,61 +1,92 @@
 // src/models/Problem.js
+
+const { Model, DataTypes } = require('sequelize');
+
 module.exports = (sequelize, DataTypes) => {
-  const Problem = sequelize.define('Problem', {
+  class Problem extends Model {
+    static associate(models) {
+      // Asociere cu utilizatorul care a raportat problema
+      Problem.belongsTo(models.User, {
+        foreignKey: 'reported_by',
+        as: 'reporter',
+        onDelete: 'SET NULL'
+      });
+      
+      // Asociere opțională cu utilizatorul (angajat) asignat la problemă
+      Problem.belongsTo(models.User, {
+        foreignKey: 'assigned_to',
+        as: 'assignedTo',
+        onDelete: 'SET NULL'
+      });
+    }
+  }
+
+  Problem.init({
     id: {
-      type: DataTypes.INTEGER,
-      primaryKey: true,
-      autoIncrement: true
+      type: DataTypes.UUID,
+      defaultValue: DataTypes.UUIDV4,
+      primaryKey: true
     },
     title: {
       type: DataTypes.STRING,
       allowNull: false
     },
     description: {
-      type: DataTypes.TEXT
-    },
-    user_id: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.TEXT,
       allowNull: false
     },
-    status: {
-      type: DataTypes.STRING,
-      defaultValue: 'nou'
-    },
-    created_at: {
-      type: DataTypes.DATE,
-      defaultValue: DataTypes.NOW
-    },
-    department: {
-      type: DataTypes.STRING
-    },
-    long: {
-      type: DataTypes.DECIMAL(9, 6)
-    },
-    lat: {
-      type: DataTypes.DECIMAL(9, 6)
-    },
-    image_path: {
-      type: DataTypes.STRING
-    },
-    report_type: {
-      type: DataTypes.STRING
-    },
     location: {
-      type: DataTypes.STRING
+      type: DataTypes.STRING,
+      allowNull: true
+    },
+    latitude: {
+      type: DataTypes.FLOAT,
+      allowNull: true
+    },
+    longitude: {
+      type: DataTypes.FLOAT,
+      allowNull: true
+    },
+    category: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      defaultValue: 'general'
+    },
+    status: {
+      type: DataTypes.STRING,  // Folosim STRING în loc de ENUM
+      allowNull: false,
+      defaultValue: 'reported',
+      validate: {
+        isIn: [['reported', 'in_progress', 'completed', 'cancelled']]
+      }
+    },
+    reported_by: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: {
+        model: 'Users',
+        key: 'id'
+      }
+    },
+    assigned_to: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: {
+        model: 'Users',
+        key: 'id'
+      }
+    },
+    media_url: {
+      type: DataTypes.STRING,
+      allowNull: true
     }
   }, {
-    tableName: 'problem',
-    timestamps: false
+    sequelize,
+    modelName: 'Problem',
+    tableName: 'Problems',
+    timestamps: true,
+    paranoid: true  // Soft delete
   });
-
-  Problem.associate = (models) => {
-    Problem.belongsTo(models.User, { foreignKey: 'user_id' });
-    Problem.belongsToMany(models.Employee, { 
-      through: models.TempProblemGraph,
-      foreignKey: 'problem_id',
-      otherKey: 'employee_id'
-    });
-  };
 
   return Problem;
 };

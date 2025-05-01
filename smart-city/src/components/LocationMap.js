@@ -1,74 +1,80 @@
 // src/components/LocationMap.js
-import React, { useEffect } from 'react';
-import L from 'leaflet';
+// Această componentă este utilizată pentru afișarea și selectarea locațiilor pe hartă
+// Verificați dacă acest fișier există și are implementarea corectă
+
+import React, { useState, useEffect, useRef } from 'react';
+import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
+import markerIcon from 'leaflet/dist/images/marker-icon.png';
+import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 
-// Fixează iconițele care lipsesc în Leaflet
-import icon from 'leaflet/dist/images/marker-icon.png';
-import iconShadow from 'leaflet/dist/images/marker-shadow.png';
-
-let DefaultIcon = L.icon({
-  iconUrl: icon,
-  shadowUrl: iconShadow,
+// Corectăm iconițele Leaflet care nu se încarcă corect în React
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: markerIcon,
+  iconUrl: markerIcon,
+  shadowUrl: markerShadow,
   iconSize: [25, 41],
   iconAnchor: [12, 41]
 });
-L.Marker.prototype.options.icon = DefaultIcon;
+
+const LocationMapContent = ({ location, onLocationUpdate }) => {
+  const [position, setPosition] = useState(location || null);
+  
+  // Event handler pentru click pe hartă
+  useMapEvents({
+    click: (e) => {
+      const newLocation = {
+        lat: e.latlng.lat,
+        lng: e.latlng.lng
+      };
+      setPosition(newLocation);
+      if (onLocationUpdate) {
+        onLocationUpdate(newLocation);
+      }
+    }
+  });
+  
+  // Dacă primim o locație nouă prin props, actualizăm poziția
+  useEffect(() => {
+    if (location && (!position || position.lat !== location.lat || position.lng !== location.lng)) {
+      setPosition(location);
+    }
+  }, [location]);
+  
+  return position ? <Marker position={[position.lat, position.lng]} /> : null;
+};
 
 const LocationMap = ({ location, onLocationUpdate }) => {
+  // Poziția inițială - centrată pe România dacă nu este specificată o locație
+  const initialPosition = location 
+    ? [location.lat, location.lng] 
+    : [45.9443, 25.0094]; // Centrul României
+  
+  const mapRef = useRef(null);
+  
+  // Actualizăm vizualizarea hărții când se schimbă locația
   useEffect(() => {
-    if (!location) return;
-
-    // Inițializează harta
-    const mapContainer = document.getElementById('map');
-    if (!mapContainer) return;
-
-    // Verifică dacă există deja o instanță a hărții
-    if (mapContainer._leaflet_id) {
-      // Harta există deja, curăț-o
-      mapContainer._leaflet = null;
-      mapContainer.innerHTML = '';
+    if (mapRef.current && location) {
+      mapRef.current.setView([location.lat, location.lng], 13);
     }
-
-    const map = L.map('map').setView([location.lat, location.lng], 15);
-
-    // Adaugă layer-ul de tile-uri (harta de bază)
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-    }).addTo(map);
-
-    // Adaugă marker draggable la locația curentă
-    const marker = L.marker([location.lat, location.lng], { draggable: true }).addTo(map);
-
-    // Actualizează coordonatele când markerul este tras
-    marker.on('dragend', function(e) {
-      const position = marker.getLatLng();
-      if (onLocationUpdate) {
-        onLocationUpdate({
-          lat: position.lat,
-          lng: position.lng
-        });
-      }
-    });
-
-    // De asemenea, permite actualizarea locației prin clic pe hartă
-    map.on('click', function(e) {
-      marker.setLatLng(e.latlng);
-      if (onLocationUpdate) {
-        onLocationUpdate({
-          lat: e.latlng.lat,
-          lng: e.latlng.lng
-        });
-      }
-    });
-
-    // Curăță la dezasamblare
-    return () => {
-      map.remove();
-    };
-  }, [location, onLocationUpdate]);
-
-  return <div id="map" style={{ height: '100%', width: '100%' }}></div>;
+  }, [location]);
+  
+  return (
+    <MapContainer 
+      center={initialPosition} 
+      zoom={location ? 13 : 6} 
+      style={{ height: '100%', width: '100%' }}
+      whenCreated={map => { mapRef.current = map; }}
+    >
+      <TileLayer
+        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+      />
+      <LocationMapContent location={location} onLocationUpdate={onLocationUpdate} />
+    </MapContainer>
+  );
 };
 
 export default LocationMap;

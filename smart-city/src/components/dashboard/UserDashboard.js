@@ -1,5 +1,9 @@
-// src/components/dashboard/UserDashboard.js
+
+// Modificări pentru UserDashboard.js - Prima parte
+
+// Modificarea importurilor și gestionarea logout
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom'; // Adaugă acest import
 import LocationMap from '../LocationMap';
 import { getProblems, createProblem } from '../../services/problemService';
 import { 
@@ -26,7 +30,11 @@ import {
   uploadProfileImage, 
   changePassword 
 } from '../../services/userService';
+
 const UserDashboard = () => {
+  const navigate = useNavigate(); // Adăugăm hook-ul de navigare
+  
+  // Restul stării componentei rămâne neschimbat
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeSection, setActiveSection] = useState('dashboard');
   const [problemType, setProblemType] = useState('');
@@ -39,12 +47,11 @@ const UserDashboard = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [problems, setProblems] = useState([]);
   const [loading, setLoading] = useState(true);
-  // La începutul componentei, adaugă acestea:
   const [userNotifications, setUserNotifications] = useState([]);
   const [userRecentReports, setUserRecentReports] = useState([]);
   const [userDataLoading, setUserDataLoading] = useState(true);
 
-  // Pentru secțiunea Account Settings, adaugă acestea:
+  // Pentru secțiunea Account Settings
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -52,7 +59,7 @@ const UserDashboard = () => {
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [pushNotifications, setPushNotifications] = useState(true);
 
-  // Pentru gestionarea parolelor:
+  // Pentru gestionarea parolelor
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -63,8 +70,11 @@ const UserDashboard = () => {
     recentReports: [],
     notifications: []
   });
+  
+  // Funcția modificată pentru logout
   const handleSignOut = () => {
-    logout();
+    logout(); // Apelăm funcția de logout din authService
+    navigate('/login'); // Redirecționăm către pagina de login
   };
   
   useEffect(() => {
@@ -131,6 +141,7 @@ const UserDashboard = () => {
     fetchProblems();
   }, []);
 
+  // Funcția modificată pentru submitFastReport
   const submitFastReport = async () => {
     if (isSubmitting) return; // Evită trimiteri multiple
     
@@ -143,26 +154,37 @@ const UserDashboard = () => {
       setIsSubmitting(true);
       
       // Obține ID-ul utilizatorului din datele autentificate
-      const userId = userData?.id || 1; // Folosește un ID implicit dacă nu avem utilizator
+      const userInfo = JSON.parse(localStorage.getItem('user') || '{}');
+      const userId = userInfo.id || userData?.id;
+      
+      if (!userId) {
+        console.error('User ID missing, cannot submit report');
+        alert('Eroare: ID utilizator lipsă. Vă rugăm să vă reconectați.');
+        return;
+      }
       
       const problemData = {
         title: "Fast Report",
-        description: "Fast report submitted via mobile app",
-        status: 'nou',
-        location: location ? `${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}` : '',
-        lat: location ? location.lat : null,
-        long: location ? location.lng : null,
-        user_id: userId,
-        report_type: 'fast',
-        created_at: new Date()
+        description: "Problemă raportată prin Fast Report",
+        location: `${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}`,
+        latitude: parseFloat(location.lat.toFixed(6)),
+        longitude: parseFloat(location.lng.toFixed(6)),
+        category: 'general',
+        status: 'new',
+        reported_by: userId
       };
       
+      console.log('Submitting fast report data:', problemData);
+      
       // Adăugăm media dacă există
+      let createdProblem;
       if (uploadedMedia) {
-        await createProblem(problemData, uploadedMedia);
+        createdProblem = await createProblem(problemData, uploadedMedia);
       } else {
-        await createProblem(problemData);
+        createdProblem = await createProblem(problemData);
       }
+      
+      console.log('Problem created successfully:', createdProblem);
       
       // Afișează un mesaj de succes
       alert('Raportul a fost trimis cu succes!');
@@ -174,27 +196,118 @@ const UserDashboard = () => {
       setLocation(null);
       
       // Actualizează lista de probleme
-      const updatedProblems = await getProblems();
-      setProblems(updatedProblems);
+      try {
+        const updatedProblems = await getProblems();
+        setProblems(updatedProblems);
+      } catch (err) {
+        console.warn('Could not refresh problems list:', err);
+      }
       
       // Actualizează și rapoartele recente ale utilizatorului
-      try {
-        if (userData && userData.id) {
-          const updatedReports = await getUserRecentReports(userData.id);
+      if (userId) {
+        try {
+          const updatedReports = await getUserRecentReports(userId);
           setUserRecentReports(updatedReports);
-        } else {
-          console.warn('Nu s-au putut încărca rapoartele recente: User ID lipsă');
+        } catch (error) {
+          console.warn('Nu s-au putut încărca rapoartele recente:', error);
         }
-      } catch (error) {
-        console.warn('Nu s-au putut încărca rapoartele recente:', error);
       }
     } catch (error) {
       console.error('Eroare la trimiterea raportului:', error);
-      alert('Trimiterea raportului a eșuat. Vă rugăm să încercați din nou.');
+      let errorMessage = 'Trimiterea raportului a eșuat.';
+      
+      if (error.response?.data?.message) {
+        errorMessage += ' ' + error.response.data.message;
+      } else if (error.message) {
+        errorMessage += ' ' + error.message;
+      }
+      
+      alert(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  const submitReport = async () => {
+    if (isSubmitting) return;
+    
+    try {
+      setIsSubmitting(true);
+      
+      // Obține ID-ul utilizatorului din datele autentificate
+      const userInfo = JSON.parse(localStorage.getItem('user') || '{}');
+      const userId = userInfo.id || userData?.id;
+      
+      if (!userId) {
+        console.error('User ID missing, cannot submit report');
+        alert('Eroare: ID utilizator lipsă. Vă rugăm să vă reconectați.');
+        return;
+      }
+      
+      const problemData = {
+        title: problemType || 'Problemă raportată',
+        description: description || `Problemă raportată: ${problemType || 'Nedefinită'}`,
+        location: location ? `${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}` : '',
+        latitude: location ? parseFloat(location.lat.toFixed(6)) : null,
+        longitude: location ? parseFloat(location.lng.toFixed(6)) : null,
+        category: (problemType || 'general').toLowerCase().replace(/\s+/g, '_'),
+        status: 'new',
+        reported_by: userId
+      };
+      
+      console.log('Submitting detailed report:', problemData);
+      
+      // Adăugăm media dacă există
+      let createdProblem;
+      if (uploadedMedia) {
+        createdProblem = await createProblem(problemData, uploadedMedia);
+      } else {
+        createdProblem = await createProblem(problemData);
+      }
+      
+      console.log('Detailed report created successfully:', createdProblem);
+      
+      // Afișează un mesaj de succes
+      alert('Raportul detaliat a fost trimis cu succes!');
+      
+      // Resetează formularul și revenim la dashboard
+      resetReport();
+      setActiveSection('dashboard');
+      
+      // Actualizează lista de probleme
+      try {
+        const updatedProblems = await getProblems();
+        setProblems(updatedProblems);
+      } catch (err) {
+        console.warn('Could not refresh problems list:', err);
+      }
+      
+      // Actualizează și rapoartele recente ale utilizatorului
+      if (userId) {
+        try {
+          const updatedReports = await getUserRecentReports(userId);
+          setUserRecentReports(updatedReports);
+        } catch (error) {
+          console.warn('Nu s-au putut încărca rapoartele recente:', error);
+        }
+      }
+    } catch (error) {
+      console.error('Eroare la trimiterea raportului detaliat:', error);
+      let errorMessage = 'Trimiterea raportului a eșuat.';
+      
+      if (error.response?.data?.message) {
+        errorMessage += ' ' + error.response.data.message;
+      } else if (error.message) {
+        errorMessage += ' ' + error.message;
+      }
+      
+      alert(errorMessage);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+  
+
 
   const handleProfileImageUpload = async (e) => {
     const file = e.target.files[0];
@@ -301,6 +414,8 @@ const UserDashboard = () => {
         return;
       }
       
+      console.log('Media file selected:', file.name, file.type, file.size);
+      
       setUploadedMedia(file);
       const preview = URL.createObjectURL(file);
       setMediaPreview(preview);
@@ -330,40 +445,7 @@ const UserDashboard = () => {
     setReportStep(3);
   };
 
-  const submitReport = async () => {
-    if (isSubmitting) return;
-    
-    try {
-      setIsSubmitting(true);
-      
-      // Obține ID-ul utilizatorului din datele autentificate
-      const userId = userData?.id || 1; // Folosește un ID implicit dacă nu avem utilizator
-      
-      const problemData = {
-        title: problemType,
-        description: description,
-        status: 'nou',
-        location: location ? `${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}` : '',
-        lat: location ? location.lat : null,
-        long: location ? location.lng : null,
-        user_id: userId,
-        report_type: 'detailed',
-        created_at: new Date()
-      };
-      
-      // Adăugăm media dacă există
-      if (uploadedMedia) {
-        await createProblem(problemData, uploadedMedia);
-      } else {
-        await createProblem(problemData);
-      }
-      
-      // Reset and update as in the fast report function
-      // ...rest of your existing code
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+
 
   const resetReport = () => {
     setReportStep(1);

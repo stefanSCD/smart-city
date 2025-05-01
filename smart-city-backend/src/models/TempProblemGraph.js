@@ -1,44 +1,66 @@
+const { Model } = require('sequelize');
+
 module.exports = (sequelize, DataTypes) => {
-    const TempProblemGraph = sequelize.define('TempProblemGraph', {
-      id: {
-        type: DataTypes.INTEGER,
-        primaryKey: true,
-        autoIncrement: true
-      },
-      problem_id: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        references: {
-          model: 'problem',
-          key: 'id'
-        }
-      },
-      employee_id: {
-        type: DataTypes.INTEGER,
-        allowNull: false,
-        references: {
-          model: 'employees',
-          key: 'id'
-        }
-      },
-      gravitate: {
-        type: DataTypes.STRING
-      },
-      long: {
-        type: DataTypes.DECIMAL(9, 6)
-      },
-      lat: {
-        type: DataTypes.DECIMAL(9, 6)
+  class TempProblemGraph extends Model {
+    static associate(models) {
+      // Relații cu utilizatorul care a raportat problema
+      TempProblemGraph.belongsTo(models.User, {
+        foreignKey: 'user_id',
+        as: 'user'
+      });
+
+      // Relații cu problema (dacă există)
+      if (models.Problem) {
+        TempProblemGraph.belongsTo(models.Problem, {
+          foreignKey: 'problem_id',
+          as: 'problem'
+        });
       }
-    }, {
-      tableName: 'tempProblemGraph',
-      timestamps: false
-    });
-  
-    TempProblemGraph.associate = (models) => {
-      TempProblemGraph.belongsTo(models.Problem, { foreignKey: 'problem_id' });
-      TempProblemGraph.belongsTo(models.Employee, { foreignKey: 'employee_id' });
-    };
-  
-    return TempProblemGraph;
-  };
+
+      // Relații cu alte modele (dacă există)
+      // Adăugați aici orice alte relații necesare
+    }
+  }
+
+  TempProblemGraph.init({
+    id: {
+      type: DataTypes.UUID,
+      defaultValue: DataTypes.UUIDV4,
+      primaryKey: true
+    },
+    problem_id: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: {
+        model: 'Problems',
+        key: 'id'
+      }
+    },
+    user_id: {
+      type: DataTypes.UUID,
+      allowNull: false,
+      references: {
+        model: 'Users',
+        key: 'id'
+      }
+    },
+    date: {
+      type: DataTypes.DATE,
+      allowNull: false,
+      defaultValue: DataTypes.NOW
+    },
+    data: {
+      type: DataTypes.JSONB,
+      allowNull: false,
+      defaultValue: {}
+    }
+  }, {
+    sequelize,
+    modelName: 'TempProblemGraph',
+    tableName: 'TempProblemGraphs',
+    underscored: true,
+    timestamps: true
+  });
+
+  return TempProblemGraph;
+};

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Eye, EyeOff, UserPlus, Building2, Check } from 'lucide-react';
+import { Eye, EyeOff, UserPlus, Building2 } from 'lucide-react';
 import { registerUser } from '../../services/authService';
 import { useNavigate } from 'react-router-dom';
 
@@ -9,6 +9,7 @@ const SignUpForm = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [phone, setPhone] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -20,12 +21,12 @@ const SignUpForm = () => {
     setError('');
     
     if (password !== confirmPassword) {
-      setError('Passwords do not match!');
+      setError('Parolele nu coincid!');
       return;
     }
     
     if (!acceptTerms) {
-      setError('Please accept the terms and conditions');
+      setError('Te rugăm să accepți termenii și condițiile');
       return;
     }
     
@@ -43,17 +44,24 @@ const SignUpForm = () => {
         prenume: firstName,
         email: email,
         password: password,
-        location: 'Not specified' // poți adăuga un câmp în formular pentru locație
+        phone: phone,
+        // Tip utilizator implicit 'user'
+        userType: 'user'
       };
       
       // Trimite datele către backend
       await registerUser(userData);
       
-      // Redirecționează către pagina de login
-      navigate('/login');
+      // Redirecționează către pagina de login cu mesaj de succes
+      navigate('/login', { 
+        state: { 
+          message: 'Cont creat cu succes! Te poți autentifica acum.', 
+          type: 'success' 
+        } 
+      });
     } catch (err) {
       console.error('Registration error:', err);
-      setError(err.response?.data?.message || 'Failed to create account. Please try again.');
+      setError(err.response?.data?.message || 'Înregistrarea a eșuat. Te rugăm să încerci din nou.');
     } finally {
       setIsLoading(false);
     }
@@ -104,20 +112,26 @@ const SignUpForm = () => {
             </div>
           </div>
           <h2 className="text-3xl font-bold text-white">Smart City</h2>
-          <p className="text-blue-200 mt-2">Create your account</p>
+          <p className="text-blue-200 mt-2">Creează-ți un cont</p>
         </div>
+        
+        {error && (
+          <div className="mb-4 p-3 bg-red-500 bg-opacity-25 border border-red-500 rounded-lg text-white text-sm">
+            {error}
+          </div>
+        )}
         
         <form onSubmit={handleSubmit}>
           <div className="space-y-4">
             <div>
-              <label className="block text-blue-200 mb-2 text-sm font-medium">Full Name</label>
+              <label className="block text-blue-200 mb-2 text-sm font-medium">Nume Complet</label>
               <input
                 type="text"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 required
                 className="w-full px-4 py-3 rounded-lg bg-white bg-opacity-20 border border-blue-300 border-opacity-30 focus:border-blue-400 focus:outline-none text-white placeholder-blue-200"
-                placeholder="John Doe"
+                placeholder="Ion Popescu"
               />
             </div>
             
@@ -129,12 +143,23 @@ const SignUpForm = () => {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 className="w-full px-4 py-3 rounded-lg bg-white bg-opacity-20 border border-blue-300 border-opacity-30 focus:border-blue-400 focus:outline-none text-white placeholder-blue-200"
-                placeholder="your.email@example.com"
+                placeholder="email@exemplu.com"
               />
             </div>
             
             <div>
-              <label className="block text-blue-200 mb-2 text-sm font-medium">Password</label>
+              <label className="block text-blue-200 mb-2 text-sm font-medium">Telefon</label>
+              <input
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className="w-full px-4 py-3 rounded-lg bg-white bg-opacity-20 border border-blue-300 border-opacity-30 focus:border-blue-400 focus:outline-none text-white placeholder-blue-200"
+                placeholder="0722 123 456"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-blue-200 mb-2 text-sm font-medium">Parolă</label>
               <div className="relative">
                 <input
                   type={showPassword ? "text" : "password"}
@@ -155,7 +180,7 @@ const SignUpForm = () => {
             </div>
             
             <div>
-              <label className="block text-blue-200 mb-2 text-sm font-medium">Confirm Password</label>
+              <label className="block text-blue-200 mb-2 text-sm font-medium">Confirmă Parola</label>
               <div className="relative">
                 <input
                   type={showConfirmPassword ? "text" : "password"}
@@ -184,7 +209,7 @@ const SignUpForm = () => {
                 className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
               />
               <label htmlFor="accept-terms" className="ml-2 text-sm text-blue-200">
-                I accept the <a href="#" className="text-blue-400 hover:text-blue-300">Terms of Service</a> and <a href="#" className="text-blue-400 hover:text-blue-300">Privacy Policy</a>
+                Accept <a href="#" className="text-blue-400 hover:text-blue-300">Termenii și Condițiile</a> și <a href="#" className="text-blue-400 hover:text-blue-300">Politica de Confidențialitate</a>
               </label>
             </div>
             
@@ -196,12 +221,12 @@ const SignUpForm = () => {
               {isLoading ? (
                 <div className="flex items-center justify-center">
                   <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white mr-2"></div>
-                  Creating account...
+                  Se creează contul...
                 </div>
               ) : (
                 <div className="flex items-center justify-center">
                   <UserPlus size={18} className="mr-2" />
-                  Sign Up
+                  Înregistrare
                 </div>
               )}
             </button>
@@ -210,7 +235,7 @@ const SignUpForm = () => {
         
         <div className="mt-6 text-center">
           <p className="text-blue-200">
-            Already have an account? <a href="/login" className="text-blue-400 hover:text-blue-300 font-medium">Sign in</a>
+            Ai deja un cont? <a href="/login" className="text-blue-400 hover:text-blue-300 font-medium">Autentifică-te</a>
           </p>
         </div>
         

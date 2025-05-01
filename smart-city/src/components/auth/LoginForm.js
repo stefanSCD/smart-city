@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Eye, EyeOff, LogIn, Building2 } from 'lucide-react';
-import { login } from '../../services/authService';
+import { login, getUserType } from '../../services/authService';
 import { useNavigate } from 'react-router-dom';
 
 const FancyLogin = () => {
@@ -17,13 +17,31 @@ const FancyLogin = () => {
     setError('');
     
     try {
-      await login(email, password);
-      // Redirecționează către dashboard
-      navigate('/userDashboard');
+      // Folosim funcția de login din authService
+      const response = await login(email, password);
+      
+      // Verificăm tipul utilizatorului pentru a știi unde să redirecționăm
+      const userType = getUserType();
+      
+      // Redirecționăm în funcție de tipul utilizatorului
+      switch(userType) {
+        case 'admin':
+          navigate('/admin/dashboard');
+          break;
+        case 'employee':
+          navigate('/employee/dashboard');
+          break;
+        default:
+          navigate('/userDashboard');
+          break;
+      }
+      
+      console.log('Login successful, redirecting to dashboard');
     } catch (error) {
       // Gestionează eroarea
       console.error("Login error:", error);
-      setError('Autentificare eșuată. Verificați credențialele.');
+      setError(error.response?.data?.message || 'Autentificare eșuată. Verificați credențialele.');
+    } finally {
       setIsLoading(false);
     }
   };
@@ -39,7 +57,7 @@ const FancyLogin = () => {
             </div>
           </div>
           <h2 className="text-3xl font-bold text-white">Smart City</h2>
-          <p className="text-blue-200 mt-2">Sign in to access your dashboard</p>
+          <p className="text-blue-200 mt-2">Autentifică-te pentru a accesa aplicația</p>
         </div>
         
         {error && (
@@ -63,7 +81,7 @@ const FancyLogin = () => {
             </div>
             
             <div>
-              <label className="block text-blue-200 mb-2 text-sm font-medium">Password</label>
+              <label className="block text-blue-200 mb-2 text-sm font-medium">Parolă</label>
               <div className="relative">
                 <input
                   type={showPassword ? "text" : "password"}
@@ -82,7 +100,7 @@ const FancyLogin = () => {
                 </button>
               </div>
               <div className="flex justify-end">
-                <a href="#" className="text-sm text-blue-300 hover:text-blue-100 mt-2">Forgot password?</a>
+                <a href="#" className="text-sm text-blue-300 hover:text-blue-100 mt-2">Ai uitat parola?</a>
               </div>
             </div>
             
@@ -94,12 +112,12 @@ const FancyLogin = () => {
               {isLoading ? (
                 <div className="flex items-center justify-center">
                   <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white mr-2"></div>
-                  Signing in...
+                  Autentificare...
                 </div>
               ) : (
                 <div className="flex items-center justify-center">
                   <LogIn size={18} className="mr-2" />
-                  Sign in
+                  Autentificare
                 </div>
               )}
             </button>
@@ -108,7 +126,7 @@ const FancyLogin = () => {
         
         <div className="mt-6 text-center">
           <p className="text-blue-200">
-            Don't have an account? <a href="/signup" className="text-blue-400 hover:text-blue-300 font-medium">Sign up</a>
+            Nu ai cont? <a href="/signup" className="text-blue-400 hover:text-blue-300 font-medium">Înregistrează-te</a>
           </p>
         </div>
         

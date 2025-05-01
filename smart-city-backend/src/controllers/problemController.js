@@ -1,5 +1,5 @@
 // src/controllers/problemController.js
-const { Problem, Employee, TempProblemGraph, User } = require('../models');
+const { Problem, User } = require('../models');
 const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
@@ -7,7 +7,7 @@ const multer = require('multer');
 // Configurarea multer pentru încărcarea fișierelor
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    const uploadDir = path.join(__dirname, '../uploads/problems');
+    const uploadDir = path.join(__dirname, '../../uploads/problems');
     // Asigură-te că directorul există
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
@@ -37,25 +37,35 @@ const upload = multer({
   }
 });
 
-// Obține toate problemele
-exports.getAllProblems = async (req, res) => {
+// Middleware pentru încărcare fișiere
+const uploadMiddleware = upload.single('media');
+
+// Obține toate problemele - versiune simplificată fără relații
+const getProblems = async (req, res) => {
   try {
+    console.log('Getting all problems');
+    
+    // Folosim o versiune simplificată fără relații pentru a evita erori
     const problems = await Problem.findAll({
-      include: [{ model: Employee }],
-      order: [['created_at', 'DESC']]
+      order: [['createdAt', 'DESC']]
     });
+    
+    console.log(`Found ${problems.length} problems`);
     res.json(problems);
   } catch (error) {
-    res.status(500).json({ message: 'Error retrieving problems', error: error.message });
+    console.error('Error retrieving problems:', error);
+    res.status(500).json({ 
+      message: 'Error retrieving problems', 
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 };
 
-// Obține o problemă după ID
-exports.getProblemById = async (req, res) => {
+// Obține o problemă după ID - versiune simplificată
+const getProblemById = async (req, res) => {
   try {
-    const problem = await Problem.findByPk(req.params.id, {
-      include: [{ model: Employee }, { model: User }]
-    });
+    const problem = await Problem.findByPk(req.params.id);
     
     if (!problem) {
       return res.status(404).json({ message: 'Problem not found' });
@@ -63,133 +73,255 @@ exports.getProblemById = async (req, res) => {
     
     res.json(problem);
   } catch (error) {
+    console.error('Error retrieving problem by ID:', error);
     res.status(500).json({ message: 'Error retrieving problem', error: error.message });
   }
 };
 
-// Creează o problemă nouă
-exports.createProblem = async (req, res) => {
+// Creează o problemă nouă - versiune simplificată
+const createProblem = async (req, res) => {
   try {
-    // Verifică dacă avem un ID de utilizator valid
-    if (!req.body.user_id) {
-      req.body.user_id = req.user ? req.user.id : 1; // Folosește utilizatorul autentificat sau un ID implicit
+    console.log('Creating new problem with body:', req.body);
+    console.log('File in request:', req.file);
+    
+    // Obține sau setează un reported_by implicit (pentru testare)
+    const reported_by = req.body.reported_by || "00000000-0000-0000-0000-000000000000";
+    
+    // Pregătim datele pentru a crea problema
+    const problemData = {
+      title: req.body.title || "Problemă necunoscută",
+      description: req.body.description || "Fără descriere",
+      location: req.body.location || null,
+      latitude: parseFloat(req.body.latitude) || null,
+      longitude: parseFloat(req.body.longitude) || null,
+      category: req.body.category || 'general',
+      status: 'reported',  // Folosim 'reported' în loc de 'new' pentru a evita probleme cu enum
+      reported_by
+    };
+    
+    // Adăugăm calea media dacă există fișier
+    if (req.file) {
+      problemData.media_url = `/uploads/problems/${req.file.filename}`;
     }
     
-    const newProblem = await Problem.create(req.body);
+    console.log('Creating problem with data:', problemData);
+    
+    // Creăm problema în baza de date
+    const newProblem = await Problem.create(problemData);
+    
+    console.log('Problem created successfully:', newProblem.id);
     res.status(201).json(newProblem);
   } catch (error) {
-    res.status(400).json({ message: 'Error creating problem', error: error.message });
-  }
-};
-
-// Creează o problemă cu imagine/video
-exports.createProblemWithMedia = async (req, res) => {
-  // Middleware pentru încărcare unică
-  const singleUpload = upload.single('image');
-  
-  singleUpload(req, res, async function(err) {
-    if (err) {
-      return res.status(400).json({ message: 'Media upload error', error: err.message });
-    }
+    console.error('Error creating problem:', error);
     
-    try {
-      // Analizează datele problemei din JSON string
-      const problemData = JSON.parse(req.body.problemData);
-      
-      // Verifică dacă avem un ID de utilizator valid
-      if (!problemData.user_id) {
-        problemData.user_id = req.user ? req.user.id : 1; // Folosește utilizatorul autentificat sau un ID implicit
-      }
-      
-      // Adaugă calea fișierului încărcat dacă există
-      if (req.file) {
-        problemData.image_path = `/uploads/problems/${req.file.filename}`;
-      }
-      
-      const newProblem = await Problem.create(problemData);
-      res.status(201).json(newProblem);
-    } catch (error) {
-      // Șterge fișierul încărcat în caz de eroare
-      if (req.file) {
+    // Șterge fișierul încărcat în caz de eroare
+    if (req.file) {
+      try {
         fs.unlinkSync(req.file.path);
+      } catch (unlinkError) {
+        console.error('Error deleting uploaded file:', unlinkError);
       }
-      res.status(400).json({ message: 'Error creating problem', error: error.message });
     }
-  });
-};
-
-// Actualizează o problemă
-exports.updateProblem = async (req, res) => {
-  try {
-    const updated = await Problem.update(req.body, {
-      where: { id: req.params.id }
+    
+    res.status(400).json({ 
+      message: 'Error creating problem', 
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
-    
-    if (updated[0] === 0) {
-      return res.status(404).json({ message: 'Problem not found' });
-    }
-    
-    const updatedProblem = await Problem.findByPk(req.params.id);
-    res.json(updatedProblem);
-  } catch (error) {
-    res.status(400).json({ message: 'Error updating problem', error: error.message });
   }
 };
 
-// Șterge o problemă
-exports.deleteProblem = async (req, res) => {
+// Actualizează o problemă - versiune simplificată
+const updateProblem = async (req, res) => {
   try {
-    // Verifică întâi dacă problema are o imagine
-    const problem = await Problem.findByPk(req.params.id);
+    const { id } = req.params;
     
+    // Verifică dacă problema există
+    const problem = await Problem.findByPk(id);
     if (!problem) {
       return res.status(404).json({ message: 'Problem not found' });
     }
     
-    // Șterge imaginea dacă există
-    if (problem.image_path) {
-      const imagePath = path.join(__dirname, '..', problem.image_path);
-      if (fs.existsSync(imagePath)) {
-        fs.unlinkSync(imagePath);
+    // Actualizează problema
+    await problem.update(req.body);
+    
+    // Returnează problema actualizată
+    const updatedProblem = await Problem.findByPk(id);
+    res.json(updatedProblem);
+  } catch (error) {
+    console.error('Error updating problem:', error);
+    res.status(400).json({ message: 'Error updating problem', error: error.message });
+  }
+};
+
+// Actualizează statusul unei probleme
+const updateProblemStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    
+    if (!status) {
+      return res.status(400).json({ message: 'Status is required' });
+    }
+    
+    // Verifică dacă problema există
+    const problem = await Problem.findByPk(id);
+    if (!problem) {
+      return res.status(404).json({ message: 'Problem not found' });
+    }
+    
+    // Validează statusul (folosește valorile permise în model)
+    const validStatuses = ['reported', 'in_progress', 'completed', 'cancelled'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ 
+        message: 'Invalid status', 
+        validValues: validStatuses 
+      });
+    }
+    
+    // Actualizează statusul
+    await problem.update({ status });
+    
+    res.json({ message: 'Problem status updated successfully', status });
+  } catch (error) {
+    console.error('Error updating problem status:', error);
+    res.status(400).json({ message: 'Error updating problem status', error: error.message });
+  }
+};
+
+// Șterge o problemă
+const deleteProblem = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Verifică dacă problema există
+    const problem = await Problem.findByPk(id);
+    if (!problem) {
+      return res.status(404).json({ message: 'Problem not found' });
+    }
+    
+    // Șterge fișierul media dacă există
+    if (problem.media_url) {
+      const mediaPath = path.join(__dirname, '../..', problem.media_url);
+      if (fs.existsSync(mediaPath)) {
+        fs.unlinkSync(mediaPath);
       }
     }
     
-    // Șterge problema din baza de date
+    // Șterge problema
     await problem.destroy();
     
     res.status(204).send();
   } catch (error) {
+    console.error('Error deleting problem:', error);
     res.status(500).json({ message: 'Error deleting problem', error: error.message });
   }
 };
 
-// Asignează o problemă unui angajat
-exports.assignProblemToEmployee = async (req, res) => {
+// Asignează o problemă unui angajat - versiune simplificată
+const assignProblemToEmployee = async (req, res) => {
   try {
-    const { problem_id, employee_id, gravitate } = req.body;
+    const { id } = req.params;
+    const { user_id } = req.body;
     
-    const problem = await Problem.findByPk(problem_id);
-    const employee = await Employee.findByPk(employee_id);
-    
-    if (!problem || !employee) {
-      return res.status(404).json({ message: 'Problem or employee not found' });
+    if (!user_id) {
+      return res.status(400).json({ message: 'Employee ID (user_id) is required' });
     }
     
-    const assignment = await TempProblemGraph.create({
-      problem_id,
-      employee_id,
-      gravitate,
-      long: problem.long,
-      lat: problem.lat
+    // Verifică dacă problema există
+    const problem = await Problem.findByPk(id);
+    if (!problem) {
+      return res.status(404).json({ message: 'Problem not found' });
+    }
+    
+    // Actualizează problema cu ID-ul angajatului și statusul
+    await problem.update({ 
+      assigned_to: user_id,
+      status: 'in_progress'
     });
     
-    // Actualizează statusul problemei la 'asignat'
-    await Problem.update({ status: 'asignat' }, {
-      where: { id: problem_id }
-    });
-    
-    res.status(201).json(assignment);
+    // Returnează problema actualizată
+    const updatedProblem = await Problem.findByPk(id);
+    res.json(updatedProblem);
   } catch (error) {
+    console.error('Error assigning problem:', error);
     res.status(400).json({ message: 'Error assigning problem', error: error.message });
   }
+};
+
+// Placeholder pentru metoda de adăugare comentarii - implementează când ai modelul Comment
+const addProblemComment = async (req, res) => {
+  try {
+    // Implementare simplificată
+    res.json({ message: "Comment functionality not yet implemented" });
+  } catch (error) {
+    console.error('Error adding comment:', error);
+    res.status(400).json({ message: 'Error adding comment', error: error.message });
+  }
+};
+
+// Obține probleme după status
+const getProblemsByStatus = async (req, res) => {
+  try {
+    const { status } = req.params;
+    
+    const problems = await Problem.findAll({
+      where: { status },
+      order: [['createdAt', 'DESC']]
+    });
+    
+    res.json(problems);
+  } catch (error) {
+    console.error('Error retrieving problems by status:', error);
+    res.status(500).json({ message: 'Error retrieving problems', error: error.message });
+  }
+};
+
+// Obține probleme după utilizator
+const getProblemsByUser = async (req, res) => {
+  try {
+    const { user_id } = req.params;
+    
+    const problems = await Problem.findAll({
+      where: { reported_by: user_id },
+      order: [['createdAt', 'DESC']]
+    });
+    
+    res.json(problems);
+  } catch (error) {
+    console.error('Error retrieving problems by user:', error);
+    res.status(500).json({ message: 'Error retrieving problems', error: error.message });
+  }
+};
+
+// Obține probleme asignate unui angajat
+const getAssignedProblems = async (req, res) => {
+  try {
+    const { user_id } = req.params;
+    
+    const problems = await Problem.findAll({
+      where: { assigned_to: user_id },
+      order: [['createdAt', 'DESC']]
+    });
+    
+    res.json(problems);
+  } catch (error) {
+    console.error('Error retrieving assigned problems:', error);
+    res.status(500).json({ message: 'Error retrieving assigned problems', error: error.message });
+  }
+};
+
+module.exports = {
+  uploadMiddleware,
+  getProblems,
+  getProblemById,
+  createProblem,
+  updateProblem,
+  updateProblemStatus,
+  deleteProblem,
+  assignProblemToEmployee,
+  getProblemsByStatus,
+  getProblemsByUser,
+  getAssignedProblems,
+  addProblemComment
 };

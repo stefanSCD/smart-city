@@ -19,28 +19,153 @@ const db = {
   Sequelize
 };
 
-// Importă modelele (atenție la ordine)
+// Importă modelele principale
 db.User = require('./User')(sequelize, Sequelize.DataTypes);
-db.Employee = require('./Employee')(sequelize, Sequelize.DataTypes);
 db.Problem = require('./Problem')(sequelize, Sequelize.DataTypes);
 db.TempProblemGraph = require('./TempProblemGraph')(sequelize, Sequelize.DataTypes);
 db.Notification = require('./Notification')(sequelize, Sequelize.DataTypes);
 
+// Proxy pentru Employee (redirecționează către User cu userType = 'employee')
+db.Employee = {
+  findAll: (options = {}) => {
+    return db.User.findAll({
+      ...options,
+      where: {
+        ...options.where,
+        userType: 'employee'
+      }
+    });
+  },
+  findOne: (options = {}) => {
+    return db.User.findOne({
+      ...options,
+      where: {
+        ...options.where,
+        userType: 'employee'
+      }
+    });
+  },
+  findByPk: (id, options = {}) => {
+    return db.User.findOne({
+      ...options,
+      where: {
+        id,
+        userType: 'employee'
+      }
+    });
+  },
+  create: (data, options = {}) => {
+    return db.User.create({
+      ...data,
+      userType: 'employee'
+    }, options);
+  },
+  update: (data, options = {}) => {
+    return db.User.update(data, {
+      ...options,
+      where: {
+        ...options.where,
+        userType: 'employee'
+      }
+    });
+  },
+  destroy: (options = {}) => {
+    return db.User.destroy({
+      ...options,
+      where: {
+        ...options.where,
+        userType: 'employee'
+      }
+    });
+  },
+  // Pentru asocieri
+  associations: {},
+  tableName: 'Users',
+  rawAttributes: db.User.rawAttributes,
+  options: db.User.options,
+  modelName: 'Employee',
+  // Adăugăm un flag pentru a indica că acesta este un model proxy
+  _isProxy: true
+};
+
+// Proxy pentru Admin (redirecționează către User cu userType = 'admin')
+db.Admin = {
+  findAll: (options = {}) => {
+    return db.User.findAll({
+      ...options,
+      where: {
+        ...options.where,
+        userType: 'admin'
+      }
+    });
+  },
+  findOne: (options = {}) => {
+    return db.User.findOne({
+      ...options,
+      where: {
+        ...options.where,
+        userType: 'admin'
+      }
+    });
+  },
+  findByPk: (id, options = {}) => {
+    return db.User.findOne({
+      ...options,
+      where: {
+        id,
+        userType: 'admin'
+      }
+    });
+  },
+  create: (data, options = {}) => {
+    return db.User.create({
+      ...data,
+      userType: 'admin'
+    }, options);
+  },
+  update: (data, options = {}) => {
+    return db.User.update(data, {
+      ...options,
+      where: {
+        ...options.where,
+        userType: 'admin'
+      }
+    });
+  },
+  destroy: (options = {}) => {
+    return db.User.destroy({
+      ...options,
+      where: {
+        ...options.where,
+        userType: 'admin'
+      }
+    });
+  },
+  // Pentru asocieri
+  associations: {},
+  tableName: 'Users',
+  rawAttributes: db.User.rawAttributes,
+  options: db.User.options,
+  modelName: 'Admin',
+  // Adăugăm un flag pentru a indica că acesta este un model proxy
+  _isProxy: true
+};
+
 // Configurează asocierile după ce toate modelele sunt încărcate
 Object.keys(db).forEach(modelName => {
-  if (db[modelName].associate) {
+  // Verificăm dacă modelul are metoda associate și nu este un proxy
+  if (db[modelName].associate && typeof db[modelName].associate === 'function' && !db[modelName]._isProxy) {
     db[modelName].associate(db);
   }
 });
 
 // Sincronizează modelele cu baza de date
-sequelize.sync({ alter: true })
+sequelize.authenticate()
   .then(async () => {
-    console.log('Database synchronized');
+    console.log('Database connection established successfully');
     
-    // Crează date de test pentru notificări
     try {
-      // Verifică dacă avem deja notificări
+      // Crează date de test pentru notificări (sau alte inițializări)
       const notificationCount = await db.Notification.count();
       if (notificationCount === 0) {
         console.log('No notifications found. Creating test data...');
@@ -76,11 +201,11 @@ sequelize.sync({ alter: true })
         console.log('Notifications already exist. Skipping creation.');
       }
     } catch (error) {
-      console.error('Error creating test notifications:', error);
+      console.error('Error creating test data:', error);
     }
   })
   .catch(err => {
-    console.error('Database synchronization error:', err);
+    console.error('Database connection error:', err);
   });
   
 module.exports = db;

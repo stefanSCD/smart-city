@@ -3,6 +3,7 @@ const { Problem, User } = require('../models');
 const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
+const { v4: uuidv4 } = require('uuid');
 
 // Configurarea multer pentru încărcarea fișierelor
 const storage = multer.diskStorage({
@@ -84,8 +85,27 @@ const createProblem = async (req, res) => {
     console.log('Creating new problem with body:', req.body);
     console.log('File in request:', req.file);
     
-    // Obține sau setează un reported_by implicit (pentru testare)
-    const reported_by = req.body.reported_by || "00000000-0000-0000-0000-000000000000";
+    // Inițializăm reported_by ca null
+    let reported_by = null;
+    
+    // Verifică dacă avem un ID de utilizator
+    if (req.body.reported_by) {
+      // Verifică dacă este deja un UUID valid
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (uuidRegex.test(req.body.reported_by)) {
+        reported_by = req.body.reported_by;
+      } else {
+        // Dacă nu este UUID, încearcă să găsești utilizatorul după ID-ul numeric
+        try {
+          const user = await User.findByPk(req.body.reported_by);
+          if (user) {
+            reported_by = user.uuid || user.id; // Folosește uuid dacă există, altfel id
+          }
+        } catch (userError) {
+          console.error('Error finding user:', userError);
+        }
+      }
+    }
     
     // Pregătim datele pentru a crea problema
     const problemData = {
@@ -95,8 +115,8 @@ const createProblem = async (req, res) => {
       latitude: parseFloat(req.body.latitude) || null,
       longitude: parseFloat(req.body.longitude) || null,
       category: req.body.category || 'general',
-      status: 'reported',  // Folosim 'reported' în loc de 'new' pentru a evita probleme cu enum
-      reported_by
+      status: 'reported',
+      reported_by // Poate fi null sau UUID valid
     };
     
     // Adăugăm calea media dacă există fișier
@@ -282,15 +302,48 @@ const getProblemsByUser = async (req, res) => {
   try {
     const { user_id } = req.params;
     
-    const problems = await Problem.findAll({
-      where: { reported_by: user_id },
-      order: [['createdAt', 'DESC']]
-    });
+    // Verifică formatul ID-ului
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     
-    res.json(problems);
+    if (uuidRegex.test(user_id)) {
+      // ID-ul este deja un UUID valid, caută direct
+      const problems = await Problem.findAll({
+        where: { reported_by: user_id },
+        order: [['createdAt', 'DESC']]
+      });
+      
+      return res.json(problems);
+    } else {
+      // ID-ul este numeric, încearcă să găsești utilizatorul
+      try {
+        const user = await User.findByPk(user_id);
+        if (user) {
+          // Găsește problemele utilizând uuid sau id
+          const userUuid = user.uuid || user.id;
+          const problems = await Problem.findAll({
+            where: { reported_by: userUuid },
+            order: [['createdAt', 'DESC']]
+          });
+          
+          return res.json(problems);
+        } else {
+          // Utilizatorul nu a fost găsit
+          return res.json([]);
+        }
+      } catch (userError) {
+        console.error('Error finding user:', userError);
+        return res.status(500).json({ 
+          message: 'Error finding user', 
+          error: userError.message 
+        });
+      }
+    }
   } catch (error) {
     console.error('Error retrieving problems by user:', error);
-    res.status(500).json({ message: 'Error retrieving problems', error: error.message });
+    res.status(500).json({ 
+      message: 'Error retrieving problems', 
+      error: error.message 
+    });
   }
 };
 

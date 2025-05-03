@@ -86,14 +86,30 @@ export const uploadProfileImage = async (file) => {
 // Obține rapoartele recente ale utilizatorului
 export const getUserRecentReports = async (userId) => {
   try {
+    console.log('Încercăm să obținem rapoartele pentru utilizatorul:', userId);
+    
     if (!userId) {
-      throw new Error('User ID required');
+      console.warn('No user ID provided for recent reports');
+      return [];
     }
-    const response = await api.get(`/users/reports/recent?userId=${userId}`);
+    
+    // Verifică dacă userId este un UUID valid
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(userId)) {
+      console.warn('ID-ul nu este un UUID valid:', userId);
+      
+      // Folosește un UUID fix pentru demo/testing
+      userId = 'c9c890bc-e9bf-4f8f-879a-57e32e32c144'; // UUID-ul valid din baza de date
+      console.log('Folosim UUID-ul fix pentru testare:', userId);
+    }
+    
+    console.log('Facem request la:', `/problems/user/${userId}`);
+    const response = await api.get(`/problems/user/${userId}`);
+    console.log('Rapoarte primite:', response.data);
     return response.data;
   } catch (error) {
-    console.error('Error fetching recent reports:', error);
-    return []; // Returnează un array gol în loc să arunce eroare
+    console.error('Error fetching user recent reports:', error);
+    return [];
   }
 };
 

@@ -27,6 +27,18 @@ export const login = async (email, password) => {
     const response = await api.post('/auth/login', { email, password });
     
     if (response.data.token) {
+      // Verificăm dacă utilizatorul are un ID valid (UUID)
+      if (response.data.user && response.data.user.id) {
+        // Verificăm dacă ID-ul este în format UUID
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (!uuidRegex.test(response.data.user.id)) {
+          console.warn('ID-ul utilizatorului nu este în format UUID:', response.data.user.id);
+          
+          // Opțional: poți face un request separat pentru a converti ID-ul
+          // sau poți proceda cu ID-ul existent și lăsa backend-ul să gestioneze conversia
+        }
+      }
+      
       // Salvăm token-ul și informațiile utilizatorului în localStorage
       localStorage.setItem('token', response.data.token);
       localStorage.setItem('user', JSON.stringify(response.data.user));

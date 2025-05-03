@@ -8,7 +8,6 @@ exports.login = async (req, res) => {
     const { email, password } = req.body;
     
     // Căutăm utilizatorul după email
-    // Nu folosim coloana deleted_at 
     const user = await User.findOne({ 
       where: { email }
     });
@@ -24,14 +23,13 @@ exports.login = async (req, res) => {
       return res.status(401).json({ message: 'Credențiale invalide' });
     }
     
-    // Verificăm dacă utilizatorul are coloana lastLogin înainte de actualizare
+    // Actualizare lastLogin dacă există
     try {
       if (user.lastLogin !== undefined) {
         await user.update({ lastLogin: new Date() });
       }
     } catch (updateError) {
       console.log('Coloana lastLogin nu există, ignorăm actualizarea', updateError);
-      // Continuăm procesul de login chiar dacă actualizarea a eșuat
     }
     
     // Construim payload-ul pentru token
@@ -53,9 +51,39 @@ exports.login = async (req, res) => {
       { expiresIn: '1d' }
     );
     
-    // Construim manual obiectul de răspuns pentru a evita probleme cu metoda toJSON
+    // Verifică dacă utilizatorul are un ID în format UUID
+    let userId = user.id;
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    
+    // Dacă ID-ul nu este un UUID, încearcă să găsești UUID-ul său din tabelul users
+    if (!uuidRegex.test(userId)) {
+      console.log('ID utilizator numeric detectat:', userId);
+      
+      // Verifică dacă există o coloană uuid
+      if (user.uuid) {
+        userId = user.uuid;
+        console.log('Folosim UUID-ul din coloana uuid:', userId);
+      } else {
+        // Opțional: Generează un UUID și actualizează utilizatorul
+        // Comentează această secțiune dacă nu dorești să modifici baza de date
+        /*
+        const { v4: uuidv4 } = require('uuid');
+        const newUuid = uuidv4();
+        try {
+          await user.update({ uuid: newUuid });
+          userId = newUuid;
+          console.log('Am generat și actualizat UUID-ul:', userId);
+        } catch (uuidError) {
+          console.error('Eroare la actualizarea UUID:', uuidError);
+        }
+        */
+      }
+    }
+    
+    // Construim manual obiectul de răspuns cu ID-ul potrivit
     const userResponse = {
-      id: user.id,
+      id: userId, // Folosim ID-ul corect (UUID dacă este disponibil)
+      numeric_id: user.id, // Păstrăm și ID-ul numeric pentru compatibilitate
       email: user.email,
       userType: user.userType,
       nume: user.nume,
@@ -159,21 +187,29 @@ exports.registerUser = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
     
-    // Creăm utilizatorul nou (tip implicit: 'user')
-    const newUser = await User.create({
+    // IMPORTANT: Forțează utilizarea valorii null pentru id
+    // pentru a permite generarea automată de către baza de date
+    const userData = {
+      id: null, // Forțează utilizarea AUTO_INCREMENT din baza de date
       email,
       password: hashedPassword,
       nume,
       prenume,
-      userType: 'user',
+      user_type: 'user',
       ...additionalData
+    };
+    
+    // Setăm explicit opțiunea de a ignora atributul id în obiectul de opțiuni
+    const newUser = await User.create(userData, {
+      fields: ['email', 'password', 'nume', 'prenume', 'user_type', 'phone', 'active'] 
+      // Enumeră toate câmpurile FĂRĂ id pentru a nu încerca să seteze id-ul
     });
     
-    // Construim manual obiectul de răspuns pentru a evita probleme cu metoda toJSON
+    // Construim manual obiectul de răspuns
     const userResponse = {
       id: newUser.id,
       email: newUser.email,
-      userType: newUser.userType,
+      userType: newUser.user_type,
       nume: newUser.nume,
       prenume: newUser.prenume,
       createdAt: newUser.createdAt,

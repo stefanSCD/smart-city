@@ -79,6 +79,12 @@ const UserDashboard = () => {
   
   useEffect(() => {
     const fetchUserData = async () => {
+      const userInfo = JSON.parse(localStorage.getItem('user') || '{}');
+      console.log('ID utilizator din localStorage:', userInfo.id);
+      
+      // Verifică formatul UUID
+      const isValidUUID = userInfo.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userInfo.id);
+      console.log('Este ID-ul un UUID valid?', isValidUUID);
       try {
         setUserDataLoading(true);
         
@@ -94,25 +100,23 @@ const UserDashboard = () => {
         setPhone(userData.phone || '');
         setUserData(userData);
         
-        // Verifică dacă avem un ID de utilizator înainte de a încărca notificările
-        if (userData && userData.id) {
+        // Obține ID-ul utilizatorului autentificat
+        const userInfo = JSON.parse(localStorage.getItem('user') || '{}');
+        const userId = userInfo.id || userData?.id;
+        
+        // Verifică dacă userId este un UUID valid
+        const isValidUUID = userId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
+        
+        if (isValidUUID) {
           try {
-            // Încarcă notificările utilizatorului
-            const notifications = await getUserNotifications(userData.id);
-            setUserNotifications(notifications);
-            
-            // Încarcă rapoartele recente ale utilizatorului
-            const recentReports = await getUserRecentReports(userData.id);
+            const recentReports = await getUserRecentReports(userId);
             setUserRecentReports(recentReports);
-          } catch (dataError) {
-            console.warn('Nu s-au putut încărca toate datele utilizatorului:', dataError);
-            // Setăm liste goale pentru a nu întrerupe aplicația
-            setUserNotifications([]);
+          } catch (error) {
+            console.error('Eroare la încărcarea rapoartelor recente:', error);
             setUserRecentReports([]);
           }
         } else {
-          console.warn('Nu s-au putut încărca datele utilizatorului: ID utilizator lipsă');
-          setUserNotifications([]);
+          console.warn('ID utilizator invalid, nu se pot încărca rapoartele recente');
           setUserRecentReports([]);
         }
         
@@ -120,13 +124,13 @@ const UserDashboard = () => {
       } catch (error) {
         console.error('Eroare la încărcarea datelor utilizatorului:', error);
         setUserDataLoading(false);
-        // Setăm stări implicite pentru a nu întrerupe aplicația
-        setUserNotifications([]);
         setUserRecentReports([]);
       }
     };
   
     fetchUserData();
+    
+    // Încarcă și toate problemele pentru pagină
     const fetchProblems = async () => {
       try {
         setLoading(true);
@@ -142,6 +146,9 @@ const UserDashboard = () => {
   }, []);
 
   // Funcția modificată pentru submitFastReport
+
+
+  // Modifică funcția submitFastReport
   const submitFastReport = async () => {
     if (isSubmitting) return; // Evită trimiteri multiple
     
@@ -153,25 +160,16 @@ const UserDashboard = () => {
     try {
       setIsSubmitting(true);
       
-      // Obține ID-ul utilizatorului din datele autentificate
-      const userInfo = JSON.parse(localStorage.getItem('user') || '{}');
-      const userId = userInfo.id || userData?.id;
-      
-      if (!userId) {
-        console.error('User ID missing, cannot submit report');
-        alert('Eroare: ID utilizator lipsă. Vă rugăm să vă reconectați.');
-        return;
-      }
-      
+      // Creăm obiectul pentru problema raportată fără reported_by
       const problemData = {
-        title: "Fast Report",
+        title: "Raport rapid",
         description: "Problemă raportată prin Fast Report",
         location: `${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}`,
         latitude: parseFloat(location.lat.toFixed(6)),
         longitude: parseFloat(location.lng.toFixed(6)),
         category: 'general',
-        status: 'new',
-        reported_by: userId
+        status: 'reported'
+        // Nu includem reported_by deloc, lăsând backend-ul să gestioneze această valoare
       };
       
       console.log('Submitting fast report data:', problemData);
@@ -202,24 +200,14 @@ const UserDashboard = () => {
       } catch (err) {
         console.warn('Could not refresh problems list:', err);
       }
-      
-      // Actualizează și rapoartele recente ale utilizatorului
-      if (userId) {
-        try {
-          const updatedReports = await getUserRecentReports(userId);
-          setUserRecentReports(updatedReports);
-        } catch (error) {
-          console.warn('Nu s-au putut încărca rapoartele recente:', error);
-        }
-      }
     } catch (error) {
       console.error('Eroare la trimiterea raportului:', error);
-      let errorMessage = 'Trimiterea raportului a eșuat.';
+      let errorMessage = 'Trimiterea raportului a eșuat. ';
       
       if (error.response?.data?.message) {
-        errorMessage += ' ' + error.response.data.message;
+        errorMessage += error.response.data.message;
       } else if (error.message) {
-        errorMessage += ' ' + error.message;
+        errorMessage += error.message;
       }
       
       alert(errorMessage);
@@ -227,85 +215,85 @@ const UserDashboard = () => {
       setIsSubmitting(false);
     }
   };
-
-  const submitReport = async () => {
-    if (isSubmitting) return;
+// Modifică și funcția submitReport similar
+const submitReport = async () => {
+  if (isSubmitting) return;
+  
+  try {
+    setIsSubmitting(true);
     
-    try {
-      setIsSubmitting(true);
-      
-      // Obține ID-ul utilizatorului din datele autentificate
-      const userInfo = JSON.parse(localStorage.getItem('user') || '{}');
-      const userId = userInfo.id || userData?.id;
-      
-      if (!userId) {
-        console.error('User ID missing, cannot submit report');
-        alert('Eroare: ID utilizator lipsă. Vă rugăm să vă reconectați.');
-        return;
-      }
-      
-      const problemData = {
-        title: problemType || 'Problemă raportată',
-        description: description || `Problemă raportată: ${problemType || 'Nedefinită'}`,
-        location: location ? `${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}` : '',
-        latitude: location ? parseFloat(location.lat.toFixed(6)) : null,
-        longitude: location ? parseFloat(location.lng.toFixed(6)) : null,
-        category: (problemType || 'general').toLowerCase().replace(/\s+/g, '_'),
-        status: 'new',
-        reported_by: userId
-      };
-      
-      console.log('Submitting detailed report:', problemData);
-      
-      // Adăugăm media dacă există
-      let createdProblem;
-      if (uploadedMedia) {
-        createdProblem = await createProblem(problemData, uploadedMedia);
-      } else {
-        createdProblem = await createProblem(problemData);
-      }
-      
-      console.log('Detailed report created successfully:', createdProblem);
-      
-      // Afișează un mesaj de succes
-      alert('Raportul detaliat a fost trimis cu succes!');
-      
-      // Resetează formularul și revenim la dashboard
-      resetReport();
-      setActiveSection('dashboard');
-      
-      // Actualizează lista de probleme
-      try {
-        const updatedProblems = await getProblems();
-        setProblems(updatedProblems);
-      } catch (err) {
-        console.warn('Could not refresh problems list:', err);
-      }
-      
-      // Actualizează și rapoartele recente ale utilizatorului
-      if (userId) {
-        try {
-          const updatedReports = await getUserRecentReports(userId);
-          setUserRecentReports(updatedReports);
-        } catch (error) {
-          console.warn('Nu s-au putut încărca rapoartele recente:', error);
-        }
-      }
-    } catch (error) {
-      console.error('Eroare la trimiterea raportului detaliat:', error);
-      let errorMessage = 'Trimiterea raportului a eșuat.';
-      
-      if (error.response?.data?.message) {
-        errorMessage += ' ' + error.response.data.message;
-      } else if (error.message) {
-        errorMessage += ' ' + error.message;
-      }
-      
-      alert(errorMessage);
-    } finally {
+    // Obține ID-ul utilizatorului din datele autentificate
+    const userInfo = JSON.parse(localStorage.getItem('user') || '{}');
+    const userId = userInfo.id || userData?.id;
+    
+    // Verifică dacă avem un tip de problemă selectat
+    if (!problemType) {
+      alert('Vă rugăm să selectați un tip de problemă.');
       setIsSubmitting(false);
+      return;
     }
-  };
+    
+    // Verifică dacă userId este un UUID valid (format corect)
+    const isValidUUID = userId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
+    
+    const problemData = {
+      title: problemType || 'Problemă raportată',
+      description: description || `Problemă raportată: ${problemType || 'Nedefinită'}`,
+      location: location ? `${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}` : '',
+      latitude: location ? parseFloat(location.lat.toFixed(6)) : null,
+      longitude: location ? parseFloat(location.lng.toFixed(6)) : null,
+      category: (problemType || 'general').toLowerCase().replace(/\s+/g, '_'),
+      status: 'reported',
+      // Trimite userId doar dacă este un UUID valid
+      reported_by: isValidUUID ? userId : null
+    };
+    
+    console.log('Submitting detailed report:', problemData);
+    
+    // Adăugăm media dacă există
+    let createdProblem;
+    if (uploadedMedia) {
+      createdProblem = await createProblem(problemData, uploadedMedia);
+    } else {
+      createdProblem = await createProblem(problemData);
+    }
+    
+    console.log('Detailed report created successfully:', createdProblem);
+    
+    // Afișează un mesaj de succes
+    alert('Raportul detaliat a fost trimis cu succes!');
+    
+    // Resetează formularul și revenim la dashboard
+    resetReport();
+    setActiveSection('dashboard');
+    
+    // Actualizează lista de probleme și rapoartele recente
+    try {
+      const updatedProblems = await getProblems();
+      setProblems(updatedProblems);
+      
+      if (isValidUUID) {
+        const updatedReports = await getUserRecentReports(userId);
+        setUserRecentReports(updatedReports);
+      }
+    } catch (err) {
+      console.warn('Could not refresh data:', err);
+    }
+  } catch (error) {
+    console.error('Eroare la trimiterea raportului detaliat:', error);
+    
+    let errorMessage = 'Trimiterea raportului a eșuat.';
+    if (error.response?.data?.message) {
+      errorMessage += ' ' + error.response.data.message;
+    } else if (error.message) {
+      errorMessage += ' ' + error.message;
+    }
+    
+    alert(errorMessage);
+  } finally {
+    setIsSubmitting(false);
+  }
+};
   
 
 
@@ -509,46 +497,90 @@ const UserDashboard = () => {
       </div>
       
       <div className="bg-white rounded-xl shadow-lg p-6">
-  <h2 className="text-xl font-semibold text-gray-800 mb-4">Recent Reports</h2>
-  {loading ? (
-    <p>Loading reports...</p>
-  ) : userRecentReports.length > 0 ? (  // Folosește userRecentReports în loc de problems
-    <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-gray-200">
-        <thead className="bg-gray-50">
-          <tr>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-          </tr>
-        </thead>
-        <tbody className="bg-white divide-y divide-gray-200">
-          {userRecentReports.map((problem) => (  // Folosește userRecentReports în loc de problems
-            <tr key={problem.id}>
-              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{problem.title}</td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{problem.location}</td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                {new Date(problem.created_at).toLocaleDateString()}
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap">
-                <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                  ${problem.status === 'completed' ? 'bg-green-100 text-green-800' : 
-                  problem.status === 'in progress' ? 'bg-blue-100 text-blue-800' : 
-                  'bg-yellow-100 text-yellow-800'}`}
-                >
-                  {problem.status}
-                </span>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  ) : (
-    <p className="text-gray-500">No reports yet.</p>
-  )}
-</div>
+        <h2 className="text-xl font-semibold text-gray-800 mb-4">Recent Reports</h2>
+        {userDataLoading ? (
+          <p>Loading reports...</p>
+        ) : userRecentReports.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {userRecentReports.map((problem) => (
+                  <tr key={problem.id}>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      {problem.title || (problem.category ? problem.category.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'N/A')}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {problem.location ? problem.location.substring(0, 20) + (problem.location.length > 20 ? '...' : '') : 'N/A'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {new Date(problem.createdAt).toLocaleDateString()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                        ${problem.status === 'completed' ? 'bg-green-100 text-green-800' : 
+                        problem.status === 'in_progress' ? 'bg-blue-100 text-blue-800' : 
+                        'bg-yellow-100 text-yellow-800'}`}
+                      >
+                        {problem.status.replace(/_/g, ' ')}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : problems && problems.length > 0 ? (
+          <div>
+            <p className="text-gray-500 mb-4">Nu ai rapoarte personale încă. Iată cele mai recente rapoarte din sistem:</p>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {problems.slice(0, 5).map((problem) => (
+                    <tr key={problem.id}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {problem.title || (problem.category ? problem.category.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'N/A')}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {problem.location ? problem.location.substring(0, 20) + (problem.location.length > 20 ? '...' : '') : 'N/A'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {new Date(problem.createdAt).toLocaleDateString()}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                          ${problem.status === 'completed' ? 'bg-green-100 text-green-800' : 
+                          problem.status === 'in_progress' ? 'bg-blue-100 text-blue-800' : 
+                          'bg-yellow-100 text-yellow-800'}`}
+                        >
+                          {problem.status?.replace(/_/g, ' ') || 'N/A'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : (
+          <p className="text-gray-500">No reports yet.</p>
+        )}
+      </div>
       
       <div className="bg-white rounded-xl shadow-lg p-6">
         <div className="flex items-center justify-between mb-4">

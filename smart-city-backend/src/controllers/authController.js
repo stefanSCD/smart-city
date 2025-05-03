@@ -8,7 +8,10 @@ exports.login = async (req, res) => {
     const { email, password } = req.body;
     
     // Căutăm utilizatorul după email
-    const user = await User.findOne({ where: { email } });
+    // Nu folosim coloana deleted_at 
+    const user = await User.findOne({ 
+      where: { email }
+    });
     
     if (!user) {
       return res.status(401).json({ message: 'Credențiale invalide' });
@@ -21,8 +24,15 @@ exports.login = async (req, res) => {
       return res.status(401).json({ message: 'Credențiale invalide' });
     }
     
-    // Actualizăm ultima dată de conectare
-    await user.update({ lastLogin: new Date() });
+    // Verificăm dacă utilizatorul are coloana lastLogin înainte de actualizare
+    try {
+      if (user.lastLogin !== undefined) {
+        await user.update({ lastLogin: new Date() });
+      }
+    } catch (updateError) {
+      console.log('Coloana lastLogin nu există, ignorăm actualizarea', updateError);
+      // Continuăm procesul de login chiar dacă actualizarea a eșuat
+    }
     
     // Construim payload-ul pentru token
     const tokenPayload = {
@@ -39,12 +49,23 @@ exports.login = async (req, res) => {
     // Generăm token JWT
     const token = jwt.sign(
       tokenPayload,
-      process.env.JWT_SECRET,
+      process.env.JWT_SECRET || 'your_jwt_secret_key',
       { expiresIn: '1d' }
     );
     
-    // Extragem datele utilizatorului pentru răspuns (excludem parola)
-    const { password: _, ...userResponse } = user.toJSON();
+    // Construim manual obiectul de răspuns pentru a evita probleme cu metoda toJSON
+    const userResponse = {
+      id: user.id,
+      email: user.email,
+      userType: user.userType,
+      nume: user.nume,
+      prenume: user.prenume,
+      department: user.department,
+      position: user.position,
+      avatar: user.avatar,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt
+    };
     
     res.json({
       token,
@@ -58,15 +79,15 @@ exports.login = async (req, res) => {
 
 // Păstrăm metodele vechi pentru compatibilitate, dar ele vor apela noua metodă
 exports.loginUser = async (req, res) => {
-  return this.login(req, res);
+  return exports.login(req, res);
 };
 
 exports.loginEmployee = async (req, res) => {
-  return this.login(req, res);
+  return exports.login(req, res);
 };
 
 exports.loginAdmin = async (req, res) => {
-  return this.login(req, res);
+  return exports.login(req, res);
 };
 
 // Obține profilul utilizatorului curent
@@ -80,7 +101,21 @@ exports.getProfile = async (req, res) => {
       return res.status(404).json({ message: 'Utilizator negăsit' });
     }
     
-    return res.json(user.toJSON());
+    // Construim manual obiectul de răspuns pentru a evita probleme cu metoda toJSON
+    const userResponse = {
+      id: user.id,
+      email: user.email,
+      userType: user.userType,
+      nume: user.nume,
+      prenume: user.prenume,
+      department: user.department,
+      position: user.position,
+      avatar: user.avatar,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt
+    };
+    
+    return res.json(userResponse);
   } catch (error) {
     console.error('Profile error:', error);
     res.status(500).json({ message: 'Eroare la obținerea profilului', error: error.message });
@@ -96,7 +131,7 @@ exports.verifyToken = (req, res) => {
       return res.status(401).json({ valid: false, message: 'Token-ul lipsește' });
     }
     
-    jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+    jwt.verify(token, process.env.JWT_SECRET || 'your_jwt_secret_key', (err, decoded) => {
       if (err) {
         return res.status(401).json({ valid: false, message: 'Token invalid sau expirat' });
       }
@@ -134,12 +169,20 @@ exports.registerUser = async (req, res) => {
       ...additionalData
     });
     
-    // Excludem parola din răspuns
-    const { password: _, ...userWithoutPassword } = newUser.toJSON();
+    // Construim manual obiectul de răspuns pentru a evita probleme cu metoda toJSON
+    const userResponse = {
+      id: newUser.id,
+      email: newUser.email,
+      userType: newUser.userType,
+      nume: newUser.nume,
+      prenume: newUser.prenume,
+      createdAt: newUser.createdAt,
+      updatedAt: newUser.updatedAt
+    };
     
     res.status(201).json({
       message: 'Utilizator înregistrat cu succes',
-      user: userWithoutPassword
+      user: userResponse
     });
   } catch (error) {
     console.error('Registration error:', error);
@@ -174,12 +217,22 @@ exports.registerEmployee = async (req, res) => {
       position
     });
     
-    // Excludem parola din răspuns
-    const { password: _, ...employeeWithoutPassword } = newEmployee.toJSON();
+    // Construim manual obiectul de răspuns pentru a evita probleme cu metoda toJSON
+    const employeeResponse = {
+      id: newEmployee.id,
+      email: newEmployee.email,
+      userType: newEmployee.userType,
+      nume: newEmployee.nume,
+      prenume: newEmployee.prenume,
+      department: newEmployee.department,
+      position: newEmployee.position,
+      createdAt: newEmployee.createdAt,
+      updatedAt: newEmployee.updatedAt
+    };
     
     res.status(201).json({
       message: 'Angajat înregistrat cu succes',
-      user: employeeWithoutPassword
+      user: employeeResponse
     });
   } catch (error) {
     console.error('Employee registration error:', error);
@@ -235,12 +288,20 @@ exports.registerAdmin = async (req, res) => {
       userType: 'admin'
     });
     
-    // Excludem parola din răspuns
-    const { password: _, ...adminWithoutPassword } = newAdmin.toJSON();
+    // Construim manual obiectul de răspuns pentru a evita probleme cu metoda toJSON
+    const adminResponse = {
+      id: newAdmin.id,
+      email: newAdmin.email,
+      userType: newAdmin.userType,
+      nume: newAdmin.nume,
+      prenume: newAdmin.prenume,
+      createdAt: newAdmin.createdAt,
+      updatedAt: newAdmin.updatedAt
+    };
     
     res.status(201).json({
       message: 'Administrator înregistrat cu succes',
-      user: adminWithoutPassword
+      user: adminResponse
     });
   } catch (error) {
     console.error('Admin registration error:', error);

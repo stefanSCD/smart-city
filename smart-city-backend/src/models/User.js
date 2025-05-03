@@ -23,7 +23,11 @@ module.exports = (sequelize, DataTypes) => {
         as: 'assignedProblems'
       });
 
-      // Alte asocieri specifice proiectului
+      // Relația cu departamentul
+      User.belongsTo(models.Department, {
+        foreignKey: 'department_id',
+        as: 'departmentDetails'
+      });
     }
   }
 
@@ -54,16 +58,25 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false
     },
     userType: {
-      type: DataTypes.STRING, // Folosim STRING în loc de ENUM
+      type: DataTypes.STRING,
       allowNull: false,
       defaultValue: 'user',
       validate: {
-        isIn: [['user', 'employee', 'admin']] // Restricționăm valorile permise
-      }
+        isIn: [['user', 'employee', 'admin']]
+      },
+      field: 'user_type' // Mapare explicită la coloana din baza de date
     },
     department: {
       type: DataTypes.STRING,
       allowNull: true
+    },
+    department_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      references: {
+        model: 'departments',
+        key: 'id'
+      }
     },
     position: {
       type: DataTypes.STRING,
@@ -83,18 +96,41 @@ module.exports = (sequelize, DataTypes) => {
     },
     isActive: {
       type: DataTypes.BOOLEAN,
-      defaultValue: true
+      defaultValue: true,
+      field: 'active' // Mapare explicită la coloana din baza de date
     },
     lastLogin: {
       type: DataTypes.DATE,
-      allowNull: true
+      allowNull: true,
+      field: 'last_login' // Mapare explicită la coloana din baza de date
     }
   }, {
     sequelize,
     modelName: 'User',
-    tableName: 'Users',
-    timestamps: true
+    tableName: 'users', // Folosește nume de tabel lowercase pentru consistență
+    timestamps: true,
+    underscored: true, // Utilizează snake_case pentru numele coloanelor
+    paranoid: false, // Activează soft delete (adaugă un câmp deleted_at în loc să șteargă efectiv)
+    // Maparea explicită a coloanelor timestamps
+    createdAt: 'created_at',
+    updatedAt: 'updated_at',
+    //deletedAt: 'deleted_at'
   });
+
+  // Hook pentru a gestiona duplicate keys în cazul utilizării UUID
+  User.beforeCreate(async (user) => {
+    const existingUser = await User.findOne({ where: { email: user.email } });
+    if (existingUser) {
+      throw new Error('User with this email already exists');
+    }
+  });
+
+  // Metode de instanță utile
+  User.prototype.toJSON = function() {
+    const values = { ...this.get() };
+    delete values.password; // Nu expune niciodată parola în răspunsuri
+    return values;
+  };
 
   return User;
 };

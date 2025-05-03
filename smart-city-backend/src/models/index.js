@@ -25,6 +25,10 @@ db.Problem = require('./Problem')(sequelize, Sequelize.DataTypes);
 db.TempProblemGraph = require('./TempProblemGraph')(sequelize, Sequelize.DataTypes);
 db.Notification = require('./Notification')(sequelize, Sequelize.DataTypes);
 
+// Importăm modelele noi pentru Admin Dashboard
+db.Camera = require('./Camera')(sequelize, Sequelize.DataTypes);
+db.Department = require('./Department')(sequelize, Sequelize.DataTypes);
+
 // Proxy pentru Employee (redirecționează către User cu userType = 'employee')
 db.Employee = {
   findAll: (options = {}) => {
@@ -151,6 +155,19 @@ db.Admin = {
   _isProxy: true
 };
 
+// Configurăm asocierile
+db.User.hasMany(db.Problem, { foreignKey: 'reported_by' });
+db.Problem.belongsTo(db.User, { foreignKey: 'reported_by' });
+
+db.User.hasMany(db.Notification, { foreignKey: 'user_id' });
+db.Notification.belongsTo(db.User, { foreignKey: 'user_id' });
+
+// User - Department
+if (db.Department) {
+  db.Department.hasMany(db.User, { foreignKey: 'department_id' });
+  db.User.belongsTo(db.Department, { foreignKey: 'department_id' });
+}
+
 // Configurează asocierile după ce toate modelele sunt încărcate
 Object.keys(db).forEach(modelName => {
   // Verificăm dacă modelul are metoda associate și nu este un proxy
@@ -159,7 +176,7 @@ Object.keys(db).forEach(modelName => {
   }
 });
 
-// Sincronizează modelele cu baza de date
+// Sincronizează modelele cu baza de date - doar la inițializare inițială
 sequelize.authenticate()
   .then(async () => {
     console.log('Database connection established successfully');

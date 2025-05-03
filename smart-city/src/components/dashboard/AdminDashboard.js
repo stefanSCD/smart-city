@@ -1,5 +1,7 @@
-// src/components/dashboard/AdminDashboard.js
-import React, { useState } from 'react';
+// src/components/dashboard/AdminDashboard.js - Partea 1: Importuri și stare inițială
+import React, { useState, useEffect } from 'react';
+import { logout } from '../../services/authService';
+import { useNavigate } from 'react-router-dom';
 import { 
   Home, 
   Video, 
@@ -26,55 +28,21 @@ import {
   Briefcase
 } from 'lucide-react';
 
+// Importăm serviciile
+import { 
+  getAllEmployees, addEmployee, updateEmployee, deleteEmployee, resetEmployeePassword,
+  getAllDepartments, addDepartment,
+  getAllCameras, addCamera, updateCamera, deleteCamera, toggleCameraAI, getCameraStatistics,
+  getAllNotifications, getCameraAlerts
+} from '../../services/adminService';
+
 const AdminDashboard = () => {
+  // State pentru secțiunea activă
   const [activeSection, setActiveSection] = useState('dashboard');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [videoSources, setVideoSources] = useState([
-    { 
-      id: 1, 
-      name: 'Piața Centrală', 
-      location: 'Strada Victoriei, Nr. 10', 
-      status: 'active', 
-      type: 'Traffic', 
-      dateAdded: '2025-04-01',
-      thumbnail: '/api/placeholder/320/180',
-      aiEnabled: true,
-      detections: 142
-    },
-    { 
-      id: 2, 
-      name: 'Parcul Municipal', 
-      location: 'Strada Parcului, Nr. 5', 
-      status: 'active', 
-      type: 'Public Safety', 
-      dateAdded: '2025-04-03',
-      thumbnail: '/api/placeholder/320/180',
-      aiEnabled: true,
-      detections: 87
-    },
-    { 
-      id: 3, 
-      name: 'Intersecție Bd. Principal', 
-      location: 'Bd. Principal / Str. Secundară', 
-      status: 'maintenance', 
-      type: 'Traffic', 
-      dateAdded: '2025-03-20',
-      thumbnail: '/api/placeholder/320/180',
-      aiEnabled: false,
-      detections: 203
-    },
-    { 
-      id: 4, 
-      name: 'Stația de autobuz', 
-      location: 'Bd. Republicii, Nr. 15', 
-      status: 'inactive', 
-      type: 'Public Transport', 
-      dateAdded: '2025-03-15',
-      thumbnail: '/api/placeholder/320/180',
-      aiEnabled: false,
-      detections: 56
-    }
-  ]);
+  const navigate = useNavigate();
+  // State pentru camere video
+  const [videoSources, setVideoSources] = useState([]);
   const [selectedCamera, setSelectedCamera] = useState(null);
   const [addCameraForm, setAddCameraForm] = useState({
     name: '',
@@ -83,43 +51,11 @@ const AdminDashboard = () => {
     streamUrl: '',
     aiEnabled: false
   });
-  const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
+  const [viewMode, setViewMode] = useState('grid');
   const [previewStreams, setPreviewStreams] = useState({});
 
-  // Employee Management State
-  const [employees, setEmployees] = useState([
-    {
-      id: 1,
-      firstName: "Andrei",
-      lastName: "Popescu",
-      email: "andrei.popescu@primarie.ro",
-      department: "Primărie",
-      role: "Administrator IT",
-      dateAdded: "2025-01-15",
-      status: "active"
-    },
-    {
-      id: 2,
-      firstName: "Maria",
-      lastName: "Ionescu",
-      email: "maria.ionescu@politialocala.ro",
-      department: "Poliția Locală",
-      role: "Ofițer",
-      dateAdded: "2025-02-10",
-      status: "active"
-    },
-    {
-      id: 3,
-      firstName: "Vasile",
-      lastName: "Dumitru",
-      email: "vasile.dumitru@salubritate.ro",
-      department: "Salubritate",
-      role: "Coordonator",
-      dateAdded: "2025-03-05",
-      status: "inactive"
-    }
-  ]);
-  
+  // State pentru gestionarea angajaților
+  const [employees, setEmployees] = useState([]);
   const [addEmployeeForm, setAddEmployeeForm] = useState({
     firstName: '',
     lastName: '',
@@ -130,34 +66,37 @@ const AdminDashboard = () => {
     role: '',
     status: 'active'
   });
-  
-  const [departmentOptions, setDepartmentOptions] = useState([
-    'Primărie',
-    'Poliția Locală',
-    'Salubritate',
-    'Transport Public',
-    'Spații Verzi',
-    'Infrastructură',
-    'Asistență Socială'
-  ]);
-  
+  const [departmentOptions, setDepartmentOptions] = useState([]);
   const [newDepartment, setNewDepartment] = useState('');
   const [showNewDepartmentInput, setShowNewDepartmentInput] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [employeesViewMode, setEmployeesViewMode] = useState('grid');
 
-  // Mock user data
-  const admin = {
+  // State pentru notificări și date admin
+  const [admin, setAdmin] = useState({
     name: "Admin User",
     email: "admin@smartcity.com",
     avatar: "/api/placeholder/200/200",
-    notifications: [
-      { id: 1, message: 'Camera "Piața Centrală" a detectat un accident de mașină', isRead: false, date: '2025-04-10 14:23' },
-      { id: 2, message: 'Camera "Parcul Municipal" necesită întreținere', isRead: false, date: '2025-04-09 09:45' },
-      { id: 3, message: 'Alertă de trafic intens pe Bd. Principal', isRead: true, date: '2025-04-08 18:12' }
-    ]
-  };
+    notifications: []
+  });
 
+  // State pentru încărcare și erori
+  const [loading, setLoading] = useState({
+    employees: false,
+    departments: false,
+    cameras: false,
+    notifications: false,
+    statistics: false
+  });
+  const [error, setError] = useState({
+    employees: null,
+    departments: null,
+    cameras: null,
+    notifications: null,
+    statistics: null
+  });
+
+  // Tipuri de camere
   const cameraTypes = [
     'Traffic',
     'Public Safety',
@@ -167,6 +106,135 @@ const AdminDashboard = () => {
     'Other'
   ];
 
+  // UseEffect pentru încărcarea datelor inițiale
+  useEffect(() => {
+    const loadInitialData = async () => {
+      await fetchEmployees();
+      await fetchDepartments();
+      await fetchCameras();
+      await fetchCameraStatistics();
+      await fetchNotifications();
+    };
+
+    loadInitialData();
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      navigate('/login');
+    } catch (error) {
+      console.error('Eroare la deconectare:', error);
+      // Chiar dacă avem o eroare, tot redirecționăm utilizatorul
+      navigate('/login');
+    }
+  };
+
+  // Funcții pentru încărcarea datelor
+  const fetchEmployees = async () => {
+    setLoading(prev => ({ ...prev, employees: true }));
+    setError(prev => ({ ...prev, employees: null }));
+    
+    try {
+      const employeesData = await getAllEmployees();
+      // Formatăm datele pentru a se potrivi cu formatul așteptat de frontend
+      const formattedEmployees = employeesData.map(employee => ({
+        id: employee.id,
+        firstName: employee.firstName || '',
+        lastName: employee.lastName || '',
+        email: employee.email,
+        department: employee.department || '',
+        role: employee.role || '',
+        dateAdded: employee.dateAdded || new Date().toISOString().split('T')[0],
+        status: employee.status || 'active'
+      }));
+      setEmployees(formattedEmployees);
+    } catch (err) {
+      console.error('Error fetching employees:', err);
+      setError(prev => ({ ...prev, employees: 'Nu s-au putut încărca angajații. Încercați din nou.' }));
+    } finally {
+      setLoading(prev => ({ ...prev, employees: false }));
+    }
+  };
+
+  const fetchDepartments = async () => {
+    setLoading(prev => ({ ...prev, departments: true }));
+    setError(prev => ({ ...prev, departments: null }));
+    
+    try {
+      const departmentsData = await getAllDepartments();
+      setDepartmentOptions(departmentsData);
+    } catch (err) {
+      console.error('Error fetching departments:', err);
+      setError(prev => ({ ...prev, departments: 'Nu s-au putut încărca departamentele. Încercați din nou.' }));
+    } finally {
+      setLoading(prev => ({ ...prev, departments: false }));
+    }
+  };
+
+  const fetchCameras = async () => {
+    setLoading(prev => ({ ...prev, cameras: true }));
+    setError(prev => ({ ...prev, cameras: null }));
+    
+    try {
+      const camerasData = await getAllCameras();
+      // Adăugăm un câmp thumbnail pentru a păstra compatibilitatea cu UI-ul existent
+      const formattedCameras = camerasData.map(camera => ({
+        ...camera,
+        thumbnail: camera.thumbnail || '/api/placeholder/320/180',
+        detections: camera.detections || 0
+      }));
+      setVideoSources(formattedCameras);
+    } catch (err) {
+      console.error('Error fetching cameras:', err);
+      setError(prev => ({ ...prev, cameras: 'Nu s-au putut încărca camerele. Încercați din nou.' }));
+    } finally {
+      setLoading(prev => ({ ...prev, cameras: false }));
+    }
+  };
+
+  const fetchCameraStatistics = async () => {
+    setLoading(prev => ({ ...prev, statistics: true }));
+    
+    try {
+      const stats = await getCameraStatistics();
+      // Putem actualiza statisticile în obiectul admin sau într-un state separat
+      // Pentru moment, nu facem nimic cu aceste date
+    } catch (err) {
+      console.error('Error fetching camera statistics:', err);
+    } finally {
+      setLoading(prev => ({ ...prev, statistics: false }));
+    }
+  };
+
+  const fetchNotifications = async () => {
+    setLoading(prev => ({ ...prev, notifications: true }));
+    setError(prev => ({ ...prev, notifications: null }));
+    
+    try {
+      const notificationsData = await getAllNotifications();
+      // Formatăm notificările pentru a se potrivi cu formatul așteptat
+      const formattedNotifications = notificationsData.map(notification => ({
+        id: notification.id,
+        message: notification.message,
+        isRead: notification.is_read,
+        date: new Date(notification.created_at).toLocaleString('ro-RO')
+      }));
+      
+      setAdmin(prev => ({ ...prev, notifications: formattedNotifications }));
+      
+      // Obține și alertele pentru camere
+      const cameraAlerts = await getCameraAlerts();
+      // Aici am putea actualiza alte state-uri cu alertele de la camere
+    } catch (err) {
+      console.error('Error fetching notifications:', err);
+      setError(prev => ({ ...prev, notifications: 'Nu s-au putut încărca notificările. Încercați din nou.' }));
+    } finally {
+      setLoading(prev => ({ ...prev, notifications: false }));
+    }
+  };
+  // src/components/dashboard/AdminDashboard.js - Partea 2: Funcții pentru gestionarea angajaților
+  // Funcția pentru preview stream-uri
   const toggleStreamPreview = (id) => {
     setPreviewStreams(prev => ({
       ...prev,
@@ -174,93 +242,80 @@ const AdminDashboard = () => {
     }));
   };
 
-  const handleAddCamera = () => {
-    const newCamera = {
-      id: videoSources.length + 1,
-      ...addCameraForm,
-      status: 'active',
-      dateAdded: new Date().toISOString().split('T')[0],
-      thumbnail: '/api/placeholder/320/180',
-      detections: 0
-    };
-    
-    setVideoSources([...videoSources, newCamera]);
-    setAddCameraForm({
-      name: '',
-      location: '',
-      type: 'Traffic',
-      streamUrl: '',
-      aiEnabled: false
-    });
-    setActiveSection('cameras');
-  };
-
-  const handleDeleteCamera = (id) => {
-    const updatedSources = videoSources.filter(source => source.id !== id);
-    setVideoSources(updatedSources);
-    if (selectedCamera && selectedCamera.id === id) {
-      setSelectedCamera(null);
-    }
-  };
-
-  const handleEditCamera = (camera) => {
-    setSelectedCamera(camera);
-    setActiveSection('editCamera');
-  };
-
-  const handleUpdateCamera = () => {
-    const updatedSources = videoSources.map(source => 
-      source.id === selectedCamera.id ? selectedCamera : source
-    );
-    setVideoSources(updatedSources);
-    setSelectedCamera(null);
-    setActiveSection('cameras');
-  };
-
-  const toggleAI = (id) => {
-    const updatedSources = videoSources.map(source => 
-      source.id === id ? {...source, aiEnabled: !source.aiEnabled} : source
-    );
-    setVideoSources(updatedSources);
-  };
-
-  // Employee Management Functions
-  const handleAddEmployee = () => {
+  // Funcțiile pentru gestionarea angajaților
+  const handleAddEmployee = async () => {
     if (addEmployeeForm.password !== addEmployeeForm.confirmPassword) {
       alert("Parolele nu corespund!");
       return;
     }
 
-    const newEmployee = {
-      id: employees.length + 1,
-      firstName: addEmployeeForm.firstName,
-      lastName: addEmployeeForm.lastName,
-      email: addEmployeeForm.email,
-      department: addEmployeeForm.department,
-      role: addEmployeeForm.role,
-      dateAdded: new Date().toISOString().split('T')[0],
-      status: addEmployeeForm.status
-    };
+    if (!addEmployeeForm.firstName || !addEmployeeForm.lastName || !addEmployeeForm.email || 
+        !addEmployeeForm.password || !addEmployeeForm.department || !addEmployeeForm.role) {
+      alert("Toate câmpurile sunt obligatorii!");
+      return;
+    }
+
+    setLoading(prev => ({ ...prev, employees: true }));
     
-    setEmployees([...employees, newEmployee]);
-    setAddEmployeeForm({
-      firstName: '',
-      lastName: '',
-      email: '',
-      password: '',
-      confirmPassword: '',
-      department: '',
-      role: '',
-      status: 'active'
-    });
-    setActiveSection('employees');
+    try {
+      // Pregătim datele pentru API, transformând în formatul așteptat de backend
+      const employeeData = {
+        firstName: addEmployeeForm.firstName,
+        lastName: addEmployeeForm.lastName,
+        email: addEmployeeForm.email,
+        password: addEmployeeForm.password,
+        department: addEmployeeForm.department,
+        role: addEmployeeForm.role,
+        status: addEmployeeForm.status
+      };
+      
+      // Trimitem datele către API
+      const newEmployee = await addEmployee(employeeData);
+      
+      // Reîmprospătăm lista de angajați
+      await fetchEmployees();
+      
+      // Resetăm formularul
+      setAddEmployeeForm({
+        firstName: '',
+        lastName: '',
+        email: '',
+        password: '',
+        confirmPassword: '',
+        department: '',
+        role: '',
+        status: 'active'
+      });
+      
+      // Redirecționăm către lista de angajați
+      setActiveSection('employees');
+      
+    } catch (err) {
+      console.error('Error adding employee:', err);
+      alert('Nu s-a putut adăuga angajatul: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setLoading(prev => ({ ...prev, employees: false }));
+    }
   };
 
-  const handleDeleteEmployee = (id) => {
-    const updatedEmployees = employees.filter(employee => employee.id !== id);
-    setEmployees(updatedEmployees);
-    if (selectedEmployee && selectedEmployee.id === id) {
-      setSelectedEmployee(null);
+  const handleDeleteEmployee = async (id) => {
+    if (!window.confirm('Sigur doriți să ștergeți acest angajat?')) {
+      return;
+    }
+    
+    try {
+      await deleteEmployee(id);
+      
+      // Reîmprospătăm lista după ștergere
+      await fetchEmployees();
+      
+      // Dacă angajatul care a fost șters este selectat, resetăm selecția
+      if (selectedEmployee && selectedEmployee.id === id) {
+        setSelectedEmployee(null);
+      }
+    } catch (err) {
+      console.error('Error deleting employee:', err);
+      alert('Nu s-a putut șterge angajatul: ' + (err.response?.data?.message || err.message));
     }
   };
 
@@ -269,24 +324,189 @@ const AdminDashboard = () => {
     setActiveSection('editEmployee');
   };
 
-  const handleUpdateEmployee = () => {
-    const updatedEmployees = employees.map(employee => 
-      employee.id === selectedEmployee.id ? selectedEmployee : employee
-    );
-    setEmployees(updatedEmployees);
-    setSelectedEmployee(null);
-    setActiveSection('employees');
-  };
-
-  const handleAddNewDepartment = () => {
-    if (newDepartment && !departmentOptions.includes(newDepartment)) {
-      setDepartmentOptions([...departmentOptions, newDepartment]);
-      setAddEmployeeForm({...addEmployeeForm, department: newDepartment});
-      setNewDepartment('');
-      setShowNewDepartmentInput(false);
+  const handleUpdateEmployee = async () => {
+    try {
+      // Pregătim datele pentru API
+      const employeeData = {
+        firstName: selectedEmployee.firstName,
+        lastName: selectedEmployee.lastName,
+        email: selectedEmployee.email,
+        department: selectedEmployee.department,
+        role: selectedEmployee.role,
+        status: selectedEmployee.status
+      };
+      
+      // Trimitem datele către API
+      await updateEmployee(selectedEmployee.id, employeeData);
+      
+      // Reîmprospătăm lista de angajați
+      await fetchEmployees();
+      
+      // Închidem editarea
+      setSelectedEmployee(null);
+      setActiveSection('employees');
+      
+    } catch (err) {
+      console.error('Error updating employee:', err);
+      alert('Nu s-a putut actualiza angajatul: ' + (err.response?.data?.message || err.message));
     }
   };
 
+  const handleAddNewDepartment = async () => {
+    if (newDepartment && !departmentOptions.includes(newDepartment)) {
+      try {
+        await addDepartment({ name: newDepartment });
+        
+        // Reîmprospătăm lista de departamente
+        await fetchDepartments();
+        
+        // Actualizăm formularul cu noul departament
+        setAddEmployeeForm({...addEmployeeForm, department: newDepartment});
+        setNewDepartment('');
+        setShowNewDepartmentInput(false);
+        
+      } catch (err) {
+        console.error('Error adding department:', err);
+        alert('Nu s-a putut adăuga departamentul: ' + (err.response?.data?.message || err.message));
+      }
+    }
+  };
+
+  const handleResetPassword = async (id) => {
+    if (!window.confirm('Sigur doriți să resetați parola acestui angajat?')) {
+      return;
+    }
+    
+    try {
+      const response = await resetEmployeePassword(id);
+      
+      // Afișăm parola temporară
+      if (response && response.temporaryPassword) {
+        alert(`Parola a fost resetată. Parola temporară este: ${response.temporaryPassword}`);
+      } else {
+        alert('Parola a fost resetată. Un email a fost trimis angajatului.');
+      }
+    } catch (err) {
+      console.error('Error resetting password:', err);
+      alert('Nu s-a putut reseta parola: ' + (err.response?.data?.message || err.message));
+    }
+  };
+  // src/components/dashboard/AdminDashboard.js - Partea 3: Funcții pentru gestionarea camerelor
+  // Funcțiile pentru gestionarea camerelor
+  const handleAddCamera = async () => {
+    if (!addCameraForm.name || !addCameraForm.location || !addCameraForm.streamUrl) {
+      alert("Numele, locația și URL-ul stream-ului sunt obligatorii!");
+      return;
+    }
+
+    try {
+      // Pregătim datele pentru API
+      const cameraData = {
+        name: addCameraForm.name,
+        location: addCameraForm.location,
+        type: addCameraForm.type,
+        streamUrl: addCameraForm.streamUrl,
+        aiEnabled: addCameraForm.aiEnabled
+      };
+      
+      // Trimitem datele către API
+      await addCamera(cameraData);
+      
+      // Reîmprospătăm lista de camere
+      await fetchCameras();
+      await fetchCameraStatistics();
+      
+      // Resetăm formularul
+      setAddCameraForm({
+        name: '',
+        location: '',
+        type: 'Traffic',
+        streamUrl: '',
+        aiEnabled: false
+      });
+      
+      // Redirecționăm către lista de camere
+      setActiveSection('cameras');
+      
+    } catch (err) {
+      console.error('Error adding camera:', err);
+      alert('Nu s-a putut adăuga camera: ' + (err.response?.data?.message || err.message));
+    }
+  };
+
+  const handleDeleteCamera = async (id) => {
+    if (!window.confirm('Sigur doriți să ștergeți această cameră?')) {
+      return;
+    }
+    
+    try {
+      await deleteCamera(id);
+      
+      // Reîmprospătăm lista după ștergere
+      await fetchCameras();
+      await fetchCameraStatistics();
+      
+      // Dacă camera care a fost ștearsă este selectată, resetăm selecția
+      if (selectedCamera && selectedCamera.id === id) {
+        setSelectedCamera(null);
+      }
+    } catch (err) {
+      console.error('Error deleting camera:', err);
+      alert('Nu s-a putut șterge camera: ' + (err.response?.data?.message || err.message));
+    }
+  };
+
+  const handleEditCamera = (camera) => {
+    setSelectedCamera(camera);
+    setActiveSection('editCamera');
+  };
+
+  const handleUpdateCamera = async () => {
+    try {
+      // Pregătim datele pentru API
+      const cameraData = {
+        name: selectedCamera.name,
+        location: selectedCamera.location,
+        type: selectedCamera.type,
+        status: selectedCamera.status,
+        streamUrl: selectedCamera.streamUrl,
+        aiEnabled: selectedCamera.aiEnabled
+      };
+      
+      // Trimitem datele către API
+      await updateCamera(selectedCamera.id, cameraData);
+      
+      // Reîmprospătăm lista de camere
+      await fetchCameras();
+      await fetchCameraStatistics();
+      
+      // Închidem editarea
+      setSelectedCamera(null);
+      setActiveSection('cameras');
+      
+    } catch (err) {
+      console.error('Error updating camera:', err);
+      alert('Nu s-a putut actualiza camera: ' + (err.response?.data?.message || err.message));
+    }
+  };
+
+  const toggleAI = async (id) => {
+    // Găsim camera pentru a ști statusul AI-ului
+    const camera = videoSources.find(c => c.id === id);
+    if (!camera) return;
+    
+    try {
+      await toggleCameraAI(id, !camera.aiEnabled);
+      
+      // Reîmprospătăm lista de camere
+      await fetchCameras();
+      await fetchCameraStatistics();
+    } catch (err) {
+      console.error('Error toggling camera AI:', err);
+      alert('Nu s-a putut actualiza statusul AI: ' + (err.response?.data?.message || err.message));
+    }
+  };
+  // src/components/dashboard/AdminDashboard.js - Partea 4: Componente de randare - Dashboard și Camere
   const renderDashboard = () => (
     <div className="space-y-6">
       <div className="bg-white rounded-xl shadow-lg p-6">
@@ -385,7 +605,21 @@ const AdminDashboard = () => {
           <span className="text-sm text-blue-600 cursor-pointer hover:underline">Vezi toate</span>
         </div>
         
-        {admin.notifications.length > 0 ? (
+        {loading.notifications ? (
+          <div className="flex justify-center items-center h-40">
+            <p className="text-gray-500">Se încarcă notificări...</p>
+          </div>
+        ) : error.notifications ? (
+          <div className="bg-red-50 p-4 rounded-lg">
+            <p className="text-red-600">{error.notifications}</p>
+            <button 
+              onClick={fetchNotifications}
+              className="mt-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+            >
+              Reîncearcă
+            </button>
+          </div>
+        ) : admin.notifications.length > 0 ? (
           <div className="space-y-4">
             {admin.notifications.map((notification) => (
               <div key={notification.id} className={`p-3 border-l-4 ${notification.isRead ? 'border-gray-300 bg-gray-50' : 'border-red-500 bg-red-50'} rounded`}>
@@ -430,7 +664,21 @@ const AdminDashboard = () => {
           </div>
         </div>
         
-        {viewMode === 'grid' ? (
+        {loading.cameras ? (
+          <div className="flex justify-center items-center h-40">
+            <p className="text-gray-500">Se încarcă camerele...</p>
+          </div>
+        ) : error.cameras ? (
+          <div className="bg-red-50 p-4 rounded-lg">
+            <p className="text-red-600">{error.cameras}</p>
+            <button 
+              onClick={fetchCameras}
+              className="mt-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+            >
+              Reîncearcă
+            </button>
+          </div>
+        ) : viewMode === 'grid' ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {videoSources.map((source) => (
               <div key={source.id} className="border rounded-lg overflow-hidden">
@@ -505,7 +753,6 @@ const AdminDashboard = () => {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tip</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">AI</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acțiuni</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -518,7 +765,7 @@ const AdminDashboard = () => {
                         </div>
                         <div className="ml-4">
                           <div className="text-sm font-medium text-gray-900">{source.name}</div>
-                          <div className="text-sm text-gray-500">Adăugat: {source.dateAdded}</div>
+                          <div className="text-sm text-gray-500">Adăugat: {source.dateAdded || 'N/A'}</div>
                         </div>
                       </div>
                     </td>
@@ -666,9 +913,9 @@ const AdminDashboard = () => {
         <button
           onClick={handleAddCamera}
           className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition"
-          disabled={!addCameraForm.name || !addCameraForm.location || !addCameraForm.streamUrl}
+          disabled={!addCameraForm.name || !addCameraForm.location || !addCameraForm.streamUrl || loading.cameras}
         >
-          Adaugă Cameră
+          {loading.cameras ? 'Se adaugă...' : 'Adaugă Cameră'}
         </button>
       </div>
     </div>
@@ -715,6 +962,16 @@ const AdminDashboard = () => {
             </div>
             
             <div className="sm:col-span-6">
+              <label className="block text-sm font-medium text-gray-700">URL Stream</label>
+              <input 
+                type="text" 
+                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500" 
+                value={selectedCamera.streamUrl}
+                onChange={(e) => setSelectedCamera({...selectedCamera, streamUrl: e.target.value})}
+              />
+            </div>
+            
+            <div className="sm:col-span-6">
               <label className="block text-sm font-medium text-gray-700">Status</label>
               <select 
                 className="mt-1 block w-full bg-white border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
@@ -751,10 +1008,10 @@ const AdminDashboard = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-gray-500">ID: {selectedCamera.id}</p>
-                  <p className="text-sm text-gray-500">Adăugat: {selectedCamera.dateAdded}</p>
+                  <p className="text-sm text-gray-500">Adăugat: {selectedCamera.dateAdded || 'N/A'}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Detecții: {selectedCamera.detections}</p>
+                  <p className="text-sm text-gray-500">Detecții: {selectedCamera.detections || 0}</p>
                   <p className="text-sm text-gray-500">
                     Status: 
                     <span className={`ml-1 px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
@@ -787,14 +1044,15 @@ const AdminDashboard = () => {
         <button
           onClick={handleUpdateCamera}
           className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition"
+          disabled={loading.cameras}
         >
-          Salvează Modificări
+          {loading.cameras ? 'Se actualizează...' : 'Salvează Modificări'}
         </button>
       </div>
     </div>
   );
-
-  // Employee management components
+  // src/components/dashboard/AdminDashboard.js - Partea 5: Componente de randare - Angajați
+  // Randare listă angajați
   const renderEmployees = () => (
     <div className="space-y-6">
       <div className="bg-white rounded-xl shadow-lg p-6">
@@ -822,7 +1080,21 @@ const AdminDashboard = () => {
           </div>
         </div>
         
-        {employeesViewMode === 'grid' ? (
+        {loading.employees ? (
+          <div className="flex justify-center items-center h-40">
+            <p className="text-gray-500">Se încarcă...</p>
+          </div>
+        ) : error.employees ? (
+          <div className="bg-red-50 p-4 rounded-lg">
+            <p className="text-red-600">{error.employees}</p>
+            <button 
+              onClick={fetchEmployees}
+              className="mt-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+            >
+              Reîncearcă
+            </button>
+          </div>
+        ) : employeesViewMode === 'grid' ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {employees.map((employee) => (
               <div key={employee.id} className="border rounded-lg overflow-hidden">
@@ -1043,6 +1315,7 @@ const AdminDashboard = () => {
                 <button
                   type="button"
                   onClick={handleAddNewDepartment}
+                  // src/components/dashboard/AdminDashboard.js - Partea 5: Componente de randare - Angajați (continuare)
                   className="ml-3 inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                 >
                   Adaugă
@@ -1128,9 +1401,10 @@ const AdminDashboard = () => {
           className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition"
           disabled={!addEmployeeForm.firstName || !addEmployeeForm.lastName || !addEmployeeForm.email || 
                    !addEmployeeForm.password || !addEmployeeForm.confirmPassword || !addEmployeeForm.department || 
-                   !addEmployeeForm.role || addEmployeeForm.password !== addEmployeeForm.confirmPassword}
+                   !addEmployeeForm.role || addEmployeeForm.password !== addEmployeeForm.confirmPassword ||
+                   loading.employees}
         >
-          Adaugă Angajat
+          {loading.employees ? 'Se adaugă...' : 'Adaugă Angajat'}
         </button>
       </div>
     </div>
@@ -1218,6 +1492,7 @@ const AdminDashboard = () => {
             <div className="sm:col-span-6">
               <button
                 type="button"
+                onClick={() => handleResetPassword(selectedEmployee.id)}
                 className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
               >
                 Resetează Parola
@@ -1266,13 +1541,14 @@ const AdminDashboard = () => {
         <button
           onClick={handleUpdateEmployee}
           className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition"
+          disabled={loading.employees}
         >
-          Salvează Modificări
+          {loading.employees ? 'Se actualizează...' : 'Salvează Modificări'}
         </button>
       </div>
     </div>
   );
-
+  // src/components/dashboard/AdminDashboard.js - Partea 6: Return și structura principală
   return (
     <div className="min-h-screen bg-gray-100">
       {/* Header */}
@@ -1386,6 +1662,7 @@ const AdminDashboard = () => {
                 Setări
               </button>
               <button
+                onClick={handleLogout}
                 className="w-full flex items-center px-4 py-3 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-md"
               >
                 <LogOut className="mr-3" size={20} />
@@ -1460,6 +1737,10 @@ const AdminDashboard = () => {
                     Setări
                   </button>
                   <button
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      handleLogout();
+                    }}
                     className="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50"
                   >
                     Deconectare

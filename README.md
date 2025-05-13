@@ -87,26 +87,6 @@ DB_PASSWORD=parola_ta
 
 ---
 
-### 7. Asigură-te că backend-ul folosește dotenv
-
-Dacă nu este deja instalat:
-
-```bash
-npm install dotenv
-```
-
----
-
-### 8. Conectare la PostgreSQL (exemplu cu `pg`)
-
-Dacă nu e configurat, instalează:
-
-```bash
-npm install pg
-```
-
----
-
 ### 9. Rulează backend-ul
 
 ```bash
@@ -115,8 +95,6 @@ npm start
 
 
 ## 🧠 Serviciul AI (`smart-city-ai-service`)
-
-Dacă este scris în Python:
 
 ```bash
 cd smart-city-ai-service
@@ -130,7 +108,6 @@ uvicorn app:app --reload
 
 ## 🌐 Frontend (`smart-city`)
 
-Dacă folosește React:
 
 ```bash
 cd smart-city

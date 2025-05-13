@@ -506,7 +506,7 @@ const AdminDashboard = () => {
       alert('Nu s-a putut actualiza statusul AI: ' + (err.response?.data?.message || err.message));
     }
   };
-  // src/components/dashboard/AdminDashboard.js - Partea 4: Componente de randare - Dashboard și Camere
+
   const renderDashboard = () => (
     <div className="space-y-6">
       <div className="bg-white rounded-xl shadow-lg p-6">
@@ -599,41 +599,7 @@ const AdminDashboard = () => {
         </div>
       </div>
       
-      <div className="bg-white rounded-xl shadow-lg p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-gray-800">Alerte Recente</h2>
-          <span className="text-sm text-blue-600 cursor-pointer hover:underline">Vezi toate</span>
-        </div>
-        
-        {loading.notifications ? (
-          <div className="flex justify-center items-center h-40">
-            <p className="text-gray-500">Se încarcă notificări...</p>
-          </div>
-        ) : error.notifications ? (
-          <div className="bg-red-50 p-4 rounded-lg">
-            <p className="text-red-600">{error.notifications}</p>
-            <button 
-              onClick={fetchNotifications}
-              className="mt-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-            >
-              Reîncearcă
-            </button>
-          </div>
-        ) : admin.notifications.length > 0 ? (
-          <div className="space-y-4">
-            {admin.notifications.map((notification) => (
-              <div key={notification.id} className={`p-3 border-l-4 ${notification.isRead ? 'border-gray-300 bg-gray-50' : 'border-red-500 bg-red-50'} rounded`}>
-                <div className="flex justify-between">
-                  <p className="text-sm text-gray-700">{notification.message}</p>
-                  <span className="text-xs text-gray-500">{notification.date}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-gray-500">Nu există notificări.</p>
-        )}
-      </div>
+      
     </div>
   );
 
@@ -1051,7 +1017,6 @@ const AdminDashboard = () => {
       </div>
     </div>
   );
-  // src/components/dashboard/AdminDashboard.js - Partea 5: Componente de randare - Angajați
   // Randare listă angajați
   const renderEmployees = () => (
     <div className="space-y-6">
@@ -1548,7 +1513,6 @@ const AdminDashboard = () => {
       </div>
     </div>
   );
-  // src/components/dashboard/AdminDashboard.js - Partea 6: Return și structura principală
   return (
     <div className="min-h-screen bg-gray-100">
       {/* Header */}
@@ -1562,13 +1526,6 @@ const AdminDashboard = () => {
             </div>
             
             <div className="hidden sm:ml-6 sm:flex sm:items-center">
-              <button className="p-1 rounded-full text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                <span className="sr-only">Vezi notificări</span>
-                <div className="relative">
-                  <Bell size={24} />
-                  <span className="absolute top-0 right-0 block h-2 w-2 rounded-full bg-red-400 ring-2 ring-white"></span>
-                </div>
-              </button>
               
               <div className="ml-3 relative">
                 <div className="flex items-center">
@@ -1655,12 +1612,7 @@ const AdminDashboard = () => {
                 <UserPlus className="mr-3" size={20} />
                 Adaugă Angajați
               </button>
-              <button
-                className="w-full flex items-center px-4 py-3 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-md"
-              >
-                <Settings className="mr-3" size={20} />
-                Setări
-              </button>
+              
               <button
                 onClick={handleLogout}
                 className="w-full flex items-center px-4 py-3 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-md"
@@ -1731,11 +1683,7 @@ const AdminDashboard = () => {
                   >
                     Adaugă Angajați
                   </button>
-                  <button
-                    className="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50"
-                  >
-                    Setări
-                  </button>
+
                   <button
                     onClick={() => {
                       setMobileMenuOpen(false);

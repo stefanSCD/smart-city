@@ -539,7 +539,7 @@ const submitReport = async () => {
           </div>
         ) : problems && problems.length > 0 ? (
           <div>
-            <p className="text-gray-500 mb-4">Nu ai rapoarte personale încă. Iată cele mai recente rapoarte din sistem:</p>
+            <p className="text-gray-500 mb-4">Iată cele mai recente rapoarte din sistem:</p>
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
@@ -661,43 +661,7 @@ const submitReport = async () => {
           </div>
         </div>
         
-        {/* Secțiunea pentru alte setări - cu checkboxuri aliniate orizontal */}
-        <div>
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Application Settings</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="flex items-start">
-              <div className="flex items-center h-5">
-                <input 
-                  type="checkbox" 
-                  id="dark-mode"
-                  className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                  checked={false}
-                  onChange={() => {}}
-                />
-              </div>
-              <div className="ml-3 text-sm">
-                <label htmlFor="dark-mode" className="font-medium text-gray-700">Dark Mode</label>
-                <p className="text-gray-500">Use dark theme</p>
-              </div>
-            </div>
-            
-            <div className="flex items-start">
-              <div className="flex items-center h-5">
-                <input 
-                  type="checkbox" 
-                  id="language-setting"
-                  className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                  checked={true}
-                  onChange={() => {}}
-                />
-              </div>
-              <div className="ml-3 text-sm">
-                <label htmlFor="language-setting" className="font-medium text-gray-700">System Language</label>
-                <p className="text-gray-500">Use system language</p>
-              </div>
-            </div>
-          </div>
-        </div>
+       
         
         {/* Secțiunea pentru detalii aplicație */}
         <div className="pt-4 border-t border-gray-200">
@@ -1073,43 +1037,6 @@ const submitReport = async () => {
           </div>
         </div>
         
-        {/* Preferințe Notificări */}
-        <div>
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Notification Preferences</h3>
-          <div className="space-y-3">
-            <div className="flex items-start">
-              <div className="flex items-center h-5">
-                <input 
-                  type="checkbox" 
-                  id="email-notifications"
-                  className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                  checked={emailNotifications}
-                  onChange={(e) => setEmailNotifications(e.target.checked)}
-                />
-              </div>
-              <div className="ml-3 text-sm">
-                <label htmlFor="email-notifications" className="font-medium text-gray-700">Email notifications</label>
-                <p className="text-gray-500">Get notified when your report status changes</p>
-              </div>
-            </div>
-            
-            <div className="flex items-start">
-              <div className="flex items-center h-5">
-                <input 
-                  type="checkbox" 
-                  id="push-notifications"
-                  className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                  checked={pushNotifications}
-                  onChange={(e) => setPushNotifications(e.target.checked)}
-                />
-              </div>
-              <div className="ml-3 text-sm">
-                <label htmlFor="push-notifications" className="font-medium text-gray-700">Push notifications</label>
-                <p className="text-gray-500">Receive push notifications on your device</p>
-              </div>
-            </div>
-          </div>
-        </div>
         
         {/* Butoane Acțiuni */}
         <div className="pt-5 border-t border-gray-200 flex justify-end space-x-3">
@@ -1142,14 +1069,6 @@ const submitReport = async () => {
             </div>
             
             <div className="hidden sm:ml-6 sm:flex sm:items-center">
-              <button className="p-1 rounded-full text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                <span className="sr-only">View notifications</span>
-                <div className="relative">
-                  <Bell size={24} />
-                  <span className="absolute top-0 right-0 block h-2 w-2 rounded-full bg-red-400 ring-2 ring-white"></span>
-                </div>
-              </button>
-              
               <div className="ml-3 relative">
                 <div className="flex items-center">
                   <img

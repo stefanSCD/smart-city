@@ -7,7 +7,7 @@ Acest proiect reprezintă o platformă Smart City ce include un frontend, un bac
 ## 📁 Structura proiectului
 
 ```
-smart-city/               # Frontend (ex: React)
+smart-city/               # Frontend (React)
 smart-city-backend/       # Backend (Node.js + PostgreSQL)
 smart-city-ai-service/    # Serviciu AI (Python)
 ```
@@ -95,12 +95,6 @@ Dacă nu este deja instalat:
 npm install dotenv
 ```
 
-În fișierul principal (`index.js`, `app.js` etc.), adaugă:
-
-```js
-require('dotenv').config();
-```
-
 ---
 
 ### 8. Conectare la PostgreSQL (exemplu cu `pg`)
@@ -135,14 +129,6 @@ module.exports = pool;
 npm start
 ```
 
-sau, dacă folosești `nodemon`:
-
-```bash
-npm install --save-dev nodemon
-npx nodemon index.js
-```
-
----
 
 ## 🧠 Serviciul AI (`smart-city-ai-service`)
 

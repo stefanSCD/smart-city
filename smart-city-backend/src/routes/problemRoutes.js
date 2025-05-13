@@ -6,6 +6,8 @@ const problemController = require('../controllers/problemController');
 
 // Rute pentru probleme - fără autentificare temporar
 // Obține toate problemele
+
+
 router.get('/', problemController.getProblems);
 
 // Obține problemă după ID
@@ -37,6 +39,7 @@ router.get('/user/:user_id', problemController.getProblemsByUser);
 
 // Obține problemele asignate unui angajat
 router.get('/assigned/:user_id', problemController.getAssignedProblems);
+
 
 // Exportă router-ul
 module.exports = router;

@@ -8,8 +8,9 @@ require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+app.use('/uploads/problems', express.static(path.join(__dirname, '..', 'uploads', 'problems')));
 
-app.use(express.static(path.join(__dirname, '..', 'public')));
+
 // Middleware de bază
 app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:3000',
@@ -35,7 +36,8 @@ try {
   app.use('/api/problems', require('./routes/problemRoutes'));
   app.use('/api/employees', require('./routes/employeeRoutes'));
   app.use('/api/auth', require('./routes/authRoutes'));
-  
+  const tempProblemGraphRoutes = require('./routes/tempProblemGraphRoutes');
+  app.use('/api/temp-problem-graphs', tempProblemGraphRoutes);
   // Creăm manual rutele admin
   const adminRouter = express.Router();
   // Aplicăm middleware de autentificare

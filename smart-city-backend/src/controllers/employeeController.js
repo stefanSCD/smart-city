@@ -598,6 +598,7 @@ exports.resolveTempProblem = async (req, res) => {
   }
 };
 
+
 // Obținerea statisticilor angajatului
 exports.getEmployeeStatistics = async (req, res) => {
   try {

@@ -48,7 +48,7 @@ const getProblems = async (req, res) => {
     
     // Folosim o versiune simplificată fără relații pentru a evita erori
     const problems = await Problem.findAll({
-      order: [['createdAt', 'DESC']]
+      order: [['id', 'DESC']]
     });
     
     console.log(`Found ${problems.length} problems`);
@@ -130,6 +130,46 @@ const createProblem = async (req, res) => {
     const newProblem = await Problem.create(problemData);
     
     console.log('Problem created successfully:', newProblem.id);
+    
+    // Adăugăm procesarea AI dacă există o imagine
+    if (newProblem.media_url) {
+      try {
+        // Import aiService și TempProblemGraph
+        const aiService = require('../services/aiService');
+        const { TempProblemGraph } = require('../models');
+        
+        // Procesăm imaginea asincron (fără await pentru a nu bloca răspunsul)
+        aiService.processProblemImage(newProblem.id, newProblem.media_url)
+          .then(aiResults => {
+            // Salvăm rezultatele în baza de date
+            return TempProblemGraph.create({
+              problem_id: newProblem.id,
+              latitude: newProblem.latitude,
+              longitude: newProblem.longitude,
+              ai_confidence: aiResults.results.confidence,
+              detected_category: aiResults.results.detectedCategory,
+              severity_score: aiResults.results.severityScore,
+              estimated_fix_time: aiResults.results.estimatedFixTime,
+              media_url: newProblem.media_url,
+              detected_objects: aiResults.results.detectedObjects,
+              processed_at: new Date()
+            });
+          })
+          .then(() => {
+            console.log(`AI processing completed for problem ${newProblem.id}`);
+          })
+          .catch(error => {
+            console.error(`Error in AI processing for problem ${newProblem.id}:`, error);
+            // Nu blocăm fluxul principal chiar dacă procesarea AI eșuează
+          });
+          
+        console.log(`AI processing initiated for problem ${newProblem.id}`);
+      } catch (aiError) {
+        console.error('Error initiating AI processing:', aiError);
+        // Nu blocăm crearea problemei dacă procesarea AI eșuează
+      }
+    }
+    
     res.status(201).json(newProblem);
   } catch (error) {
     console.error('Error creating problem:', error);
@@ -287,7 +327,7 @@ const getProblemsByStatus = async (req, res) => {
     
     const problems = await Problem.findAll({
       where: { status },
-      order: [['createdAt', 'DESC']]
+      order: [['id', 'DESC']]
     });
     
     res.json(problems);
@@ -309,7 +349,7 @@ const getProblemsByUser = async (req, res) => {
       // ID-ul este deja un UUID valid, caută direct
       const problems = await Problem.findAll({
         where: { reported_by: user_id },
-        order: [['createdAt', 'DESC']]
+        order: [['id', 'DESC']]
       });
       
       return res.json(problems);
@@ -322,7 +362,7 @@ const getProblemsByUser = async (req, res) => {
           const userUuid = user.uuid || user.id;
           const problems = await Problem.findAll({
             where: { reported_by: userUuid },
-            order: [['createdAt', 'DESC']]
+            order: [['id', 'DESC']]
           });
           
           return res.json(problems);
@@ -354,7 +394,7 @@ const getAssignedProblems = async (req, res) => {
     
     const problems = await Problem.findAll({
       where: { assigned_to: user_id },
-      order: [['createdAt', 'DESC']]
+      order: [['id', 'DESC']]
     });
     
     res.json(problems);
@@ -364,7 +404,10 @@ const getAssignedProblems = async (req, res) => {
   }
 };
 
+
+
 module.exports = {
+  
   uploadMiddleware,
   getProblems,
   getProblemById,

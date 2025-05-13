@@ -83,8 +83,8 @@ module.exports = (sequelize, DataTypes) => {
   }, {
     sequelize,
     modelName: 'Problem',
-    tableName: 'Problems',
-    timestamps: true,
+    tableName: 'problems',
+    timestamps: false,
     paranoid: true  // Soft delete
   });
 

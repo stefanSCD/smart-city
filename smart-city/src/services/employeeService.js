@@ -23,6 +23,16 @@ export const updateEmployeeProfile = async (profileData) => {
   }
 };
 
+export const getAllTempProblemGraphs = async () => {
+  try {
+    const response = await api.get('/temp-problem-graphs');
+    return response.data;
+  } catch (error) {
+    console.error('Eroare la încărcarea problemelor AI:', error);
+    throw error;
+  }
+};
+
 // Încarcă o imagine de profil
 export const uploadEmployeeAvatar = async (file) => {
   try {
@@ -53,6 +63,8 @@ export const changeEmployeePassword = async (passwordData) => {
   }
 };
 
+
+
 // Obține problemele temporare pentru departamentul angajatului
 export const getEmployeeTempProblems = async () => {
   try {
@@ -75,13 +87,11 @@ export const updateTempProblemStatus = async (problemId, status) => {
   }
 };
 
-// Marchează o problemă temporară ca rezolvată
 export const resolveTempProblem = async (problemId, resolutionData) => {
   try {
-    const response = await api.put(`/employees/problems/temp/${problemId}/resolve`, resolutionData);
+    const response = await api.post(`/temp-problem-graphs/${problemId}/resolve`, resolutionData);
     return response.data;
   } catch (error) {
-    console.error('Error resolving temporary problem:', error);
     throw error;
   }
 };

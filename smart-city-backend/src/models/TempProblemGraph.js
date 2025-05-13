@@ -1,24 +1,16 @@
+// src/models/TempProblemGraph.js
 const { Model } = require('sequelize');
 
 module.exports = (sequelize, DataTypes) => {
   class TempProblemGraph extends Model {
     static associate(models) {
-      // Relații cu utilizatorul care a raportat problema
-      TempProblemGraph.belongsTo(models.User, {
-        foreignKey: 'user_id',
-        as: 'user'
-      });
-
-      // Relații cu problema (dacă există)
+      // Relații cu problema
       if (models.Problem) {
         TempProblemGraph.belongsTo(models.Problem, {
           foreignKey: 'problem_id',
           as: 'problem'
         });
       }
-
-      // Relații cu alte modele (dacă există)
-      // Adăugați aici orice alte relații necesare
     }
   }
 
@@ -30,36 +22,56 @@ module.exports = (sequelize, DataTypes) => {
     },
     problem_id: {
       type: DataTypes.UUID,
-      allowNull: true,
+      allowNull: false,
       references: {
         model: 'Problems',
         key: 'id'
       }
     },
-    user_id: {
-      type: DataTypes.UUID,
-      allowNull: false,
-      references: {
-        model: 'Users',
-        key: 'id'
-      }
+    latitude: {
+      type: DataTypes.FLOAT,
+      allowNull: true
     },
-    date: {
+    longitude: {
+      type: DataTypes.FLOAT,
+      allowNull: true
+    },
+    ai_confidence: {
+      type: DataTypes.FLOAT,
+      allowNull: true
+    },
+    detected_category: {
+      type: DataTypes.STRING,
+      allowNull: true
+    },
+    severity_score: {
+      type: DataTypes.INTEGER,
+      allowNull: true
+    },
+    media_url: {    
+      type: DataTypes.STRING,
+      allowNull: true
+    },
+    estimated_fix_time: {
+      type: DataTypes.STRING,
+      allowNull: true
+    },
+    detected_objects: {
+      type: DataTypes.JSONB,
+      allowNull: true,
+      defaultValue: {}
+    },
+    processed_at: {
       type: DataTypes.DATE,
       allowNull: false,
       defaultValue: DataTypes.NOW
-    },
-    data: {
-      type: DataTypes.JSONB,
-      allowNull: false,
-      defaultValue: {}
     }
   }, {
     sequelize,
     modelName: 'TempProblemGraph',
-    tableName: 'TempProblemGraphs',
+    tableName: 'temp_problem_graphs',
     underscored: true,
-    timestamps: true
+    timestamps: false
   });
 
   return TempProblemGraph;

@@ -4,7 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { updateProblem } from '../../services/problemService';
 import { logout } from '../../services/authService';
 import { 
-  User, 
+  User,
+  Clock, 
   LogOut, 
   CheckCircle,
   AlignJustify,
@@ -17,15 +18,17 @@ import {
   Camera
 } from 'lucide-react';
 import * as employeeService from '../../services/employeeService';
-
+import LocationMap from '../../components/LocationMap';
 const EmployeeDashboard = () => {
+  
   const navigate = useNavigate();
   const [activeSection, setActiveSection] = useState('tasks');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [selectedProblem, setSelectedProblem] = useState(null);
   const [problems, setProblems] = useState([]);
   const [loading, setLoading] = useState(true);
-  
+  const [tempProblems, setTempProblems] = useState([]);
+  const [tempProblemsLoading, setTempProblemsLoading] = useState(true);
   // Pentru secțiunea Account Settings
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -46,48 +49,59 @@ const EmployeeDashboard = () => {
   const [confirmPassword, setConfirmPassword] = useState("");
   
   useEffect(() => {
-    // Încărcăm datele angajatului și problemele simultan
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        setUserDataLoading(true);
-        
-        // 1. Încărcăm profilul angajatului
-        const profileData = await employeeService.getEmployeeProfile();
-        setUserData(profileData);
-        
-        // Setăm numele și prenumele pentru formular
-        if (profileData.nume && profileData.prenume) {
-          setFirstName(profileData.prenume);
-          setLastName(profileData.nume);
-        } else if (profileData.name) {
-          const nameParts = profileData.name.split(' ');
-          setFirstName(nameParts[0] || '');
-          setLastName(nameParts.slice(1).join(' ') || '');
-        }
-        
-        setEmail(profileData.email || '');
-        setPhone(profileData.phone || '');
-        
-        // 2. Încărcăm problemele pentru departament
-        const tempProblems = await employeeService.getEmployeeTempProblems();
-        setProblems(tempProblems);
-        
-        // 3. Încărcăm statisticile
-        const stats = await employeeService.getEmployeeStatistics();
-        setStatistics(stats);
-        
-        setUserDataLoading(false);
-        setLoading(false);
-      } catch (error) {
-        console.error('Eroare la încărcarea datelor:', error);
-        setUserDataLoading(false);
-        setLoading(false);
+  // Încărcăm datele angajatului și problemele
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      setUserDataLoading(true);
+      
+      // 1. Încărcăm profilul angajatului
+      const profileData = await employeeService.getEmployeeProfile();
+      setUserData(profileData);
+      
+      // Setăm numele și prenumele pentru formular
+      if (profileData.nume && profileData.prenume) {
+        setFirstName(profileData.prenume);
+        setLastName(profileData.nume);
+      } else if (profileData.name) {
+        const nameParts = profileData.name.split(' ');
+        setFirstName(nameParts[0] || '');
+        setLastName(nameParts.slice(1).join(' ') || '');
       }
-    };
-    
-    fetchData();
-  }, []);
+      
+      setEmail(profileData.email || '');
+      setPhone(profileData.phone || '');
+      
+      // 2. Încărcăm doar problemele care ne interesează (fără statistici)
+      const [tempProblemsResult, aiProblemsResult] = await Promise.all([
+        employeeService.getEmployeeTempProblems(),
+        employeeService.getAllTempProblemGraphs()
+      ]);
+      
+      // 3. Setăm datele în state
+      setProblems(tempProblemsResult);
+      setTempProblems(aiProblemsResult);
+      
+      // 4. Setăm statistici default (fără a face apel API)
+      setStatistics({
+        resolvedProblems: 0,
+        completedTasks: 0,
+        inProgressTasks: 0,
+        resolutionRate: '0',
+        averageResolutionTime: '0'
+      });
+      
+      setUserDataLoading(false);
+      setLoading(false);
+    } catch (error) {
+      console.error('Eroare la încărcarea datelor:', error);
+      setUserDataLoading(false);
+      setLoading(false);
+    }
+  };
+  
+  fetchData();
+}, []);
   
   // Handle logout functionality
   const handleLogout = () => {
@@ -96,7 +110,13 @@ const EmployeeDashboard = () => {
     // Redirect to login page
     navigate('/login');
   };
+  const getSeverityLabel = (score) => {
+  if (!score && score !== 0) return 'Necunoscută';
   
+  if (score >= 8) return 'Ridicată';
+  if (score >= 5) return 'Medie';
+  return 'Scăzută';
+};
   // Funcții pentru managementul profilului
   const handleProfileImageUpload = async (e) => {
     const file = e.target.files[0];
@@ -128,6 +148,45 @@ const EmployeeDashboard = () => {
         alert('Încărcarea imaginii de profil a eșuat. Vă rugăm să încercați din nou.');
       }
     }
+  };
+
+  // Funcții pentru afișarea categoriilor AI
+  const getCategoryIcon = (category) => {
+    if (!category) return '❓';
+    
+    switch (category.toLowerCase()) {
+      case 'pothole':
+        return '🕳️';
+      case 'garbage':
+        return '🗑️';
+      case 'graffiti':
+        return '🖌️';
+      // Adăugați mai multe cazuri după nevoie
+      default:
+        return '❓';
+    }
+  };
+
+  const getCategoryLabel = (category) => {
+    if (!category) return 'Necunoscut';
+    
+    switch (category.toLowerCase()) {
+      case 'pothole':
+        return 'Groapă în asfalt';
+      case 'garbage':
+        return 'Gunoi';
+      // Adăugați mai multe cazuri după nevoie
+      default:
+        return category.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    }
+  };
+
+  const getSeverityClass = (score) => {
+    if (!score && score !== 0) return 'bg-gray-100 text-gray-600';
+    
+    if (score >= 8) return 'bg-red-100 text-red-800';
+    if (score >= 5) return 'bg-yellow-100 text-yellow-800';
+    return 'bg-green-100 text-green-800';
   };
 
   const handleSaveProfile = async () => {
@@ -205,34 +264,50 @@ const EmployeeDashboard = () => {
   };
   
   const handleMarkAsSolved = async (problemId) => {
+  try {
+    // Eliminăm dialogul prompt și folosim un text predefinit
+    const resolution = "Rezolvat prin dashboard-ul angajatului";
+    
+    // Apelăm direct API-ul pentru a rezolva problema
+    await employeeService.resolveTempProblem(problemId, { 
+      resolution,
+      notes: "Marcat ca rezolvat din dashboard"
+    });
+    
+    // Actualizăm lista locală - ștergem problema din tabelul afișat
+    setProblems(prev => prev.filter(p => {
+      if (p.id === problemId) return false;
+      if (p.problem && p.problem.id === problemId) return false;
+      return true;
+    }));
+    
+    // Ștergem și din lista de probleme temporare (tempProblems)
+    setTempProblems(prev => prev.filter(p => {
+      if (p.id === problemId) return false;
+      if (p.problem && p.problem.id === problemId) return false;
+      return true;
+    }));
+    
+    // Reîmprospătăm statisticile
     try {
-      const resolution = prompt("Introduceți detalii despre rezolvarea problemei:");
-      
-      if (resolution) {
-        await employeeService.resolveTempProblem(problemId, { 
-          resolution,
-          notes: "Rezolvat prin dashboard-ul angajatului"
-        });
-        
-        // Actualizăm lista local
-        setProblems(prev => prev.filter(p => {
-          if (p.id === problemId) return false;
-          if (p.problem && p.problem.id === problemId) return false;
-          return true;
-        }));
-        
-        // Reîmprospătăm statisticile
-        const stats = await employeeService.getEmployeeStatistics();
-        setStatistics(stats);
-        
-        // Închide popup-ul
-        setSelectedProblem(null);
-      }
+      const stats = await employeeService.getEmployeeStatistics();
+      setStatistics(stats);
     } catch (error) {
-      console.error('Eroare la marcarea problemei ca rezolvată:', error);
-      alert('Eroare la marcarea problemei ca rezolvată. Vă rugăm să încercați din nou.');
+      console.error('Eroare la actualizarea statisticilor:', error);
     }
-  };
+    
+    // Închide popup-ul
+    setSelectedProblem(null);
+    
+    // Opțional: Afișați un mesaj de succes
+    // Puteți folosi o bibliotecă de notificări sau un sistem propriu
+    // De exemplu: toast.success('Problema a fost marcată ca rezolvată!');
+    
+  } catch (error) {
+    console.error('Eroare la marcarea problemei ca rezolvată:', error);
+    alert('Eroare la marcarea problemei ca rezolvată. Vă rugăm să încercați din nou.');
+  }
+};
 
   const handleProblemClick = (problem) => {
     // Pentru TempProblemGraph avem problema în sub-obiectul 'problem'
@@ -271,188 +346,225 @@ const EmployeeDashboard = () => {
     }
   };
   
-  const renderProblemPopup = () => {
-    if (!selectedProblem) return null;
+ const renderProblemPopup = () => {
+  if (!selectedProblem) return null;
 
-    return (
-      <div className="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-        <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-          <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" onClick={handleClosePopup}></div>
+  // Construiți URL-ul corect pentru imagine
+  const imageUrl = selectedProblem.media_url && selectedProblem.media_url.startsWith('/')
+    ? `${process.env.REACT_APP_API_URL || 'http://localhost:3001'}${selectedProblem.media_url}`
+    : selectedProblem.media_url;
 
-          <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+  // Creați obiectul de locație pentru LocationMap
+  const problemLocation = selectedProblem.latitude && selectedProblem.longitude 
+    ? { lat: selectedProblem.latitude, lng: selectedProblem.longitude } 
+    : null;
 
-          <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-            <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-              <div className="sm:flex sm:items-start">
-                <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
-                  <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg leading-6 font-medium text-gray-900" id="modal-title">
-                      {selectedProblem.title || selectedProblem.type} - {selectedProblem.location}
-                    </h3>
-                    {selectedProblem.priority && (
-                      <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getPriorityClass(selectedProblem.priority)}`}>
-                        {selectedProblem.priority.charAt(0).toUpperCase() + selectedProblem.priority.slice(1)} Priority
-                      </span>
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+      <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" onClick={handleClosePopup}></div>
+
+        <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+
+        <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+          <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+            <div className="sm:flex sm:items-start">
+              <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg leading-6 font-medium text-gray-900" id="modal-title">
+                    {selectedProblem.title || selectedProblem.type} - {selectedProblem.location}
+                  </h3>
+                  {selectedProblem.priority && (
+                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getPriorityClass(selectedProblem.priority)}`}>
+                      {selectedProblem.priority.charAt(0).toUpperCase() + selectedProblem.priority.slice(1)} Priority
+                    </span>
+                  )}
+                </div>
+                
+                <div className="mt-4">
+                  <p className="text-sm text-gray-500 mb-4">{selectedProblem.description}</p>
+                  
+                  <div className="flex space-x-2 mb-4">
+                    <div className="flex-shrink-0">
+                      <span className="text-lg">{getProblemIcon(selectedProblem.type || selectedProblem.category)}</span>
+                    </div>
+                    <div>
+                      {selectedProblem.reported_by && (
+                        <p className="text-sm text-gray-500">Raportat de: {selectedProblem.reporter?.name || 'Utilizator'}</p>
+                      )}
+                      <p className="text-sm text-gray-500">
+                        Data: {selectedProblem.createdAt ? new Date(selectedProblem.createdAt).toLocaleDateString() : 'Invalid Date'}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {/* Secțiunea pentru Hartă - ADĂUGAȚI AICI */}
+                  <div className="mb-4">
+                    <h4 className="text-sm font-medium text-gray-700 mb-2">Locație</h4>
+                    {problemLocation ? (
+                      <div>
+                        <div className="bg-gray-100 p-2 rounded text-sm text-gray-700 mb-2">
+                          {selectedProblem.location || `${problemLocation.lat}, ${problemLocation.lng}`}
+                        </div>
+                        <div className="h-48 rounded-lg overflow-hidden border border-gray-200">
+                          <LocationMap 
+                            location={problemLocation} 
+                            onLocationUpdate={null} // Dezactivăm actualizarea locației pentru vizualizare
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="bg-gray-100 p-2 rounded text-sm text-gray-700">
+                        {selectedProblem.location || 'Locație necunoscută'}
+                      </div>
                     )}
                   </div>
                   
-                  <div className="mt-4">
-                    <p className="text-sm text-gray-500 mb-4">{selectedProblem.description}</p>
-                    
-                    <div className="flex space-x-2 mb-4">
-                      <div className="flex-shrink-0">
-                        <span className="text-lg">{getProblemIcon(selectedProblem.type || selectedProblem.category)}</span>
-                      </div>
-                      <div>
-                        {selectedProblem.reported_by && (
-                          <p className="text-sm text-gray-500">Raportat de: {selectedProblem.reporter?.name || 'Utilizator'}</p>
-                        )}
-                        <p className="text-sm text-gray-500">Data: {new Date(selectedProblem.createdAt || selectedProblem.reportDate).toLocaleDateString()}</p>
-                      </div>
-                    </div>
-                    
+                  {/* Secțiunea pentru imagini - existentă */}
+                  {imageUrl && (
                     <div className="mb-4">
-                      <h4 className="text-sm font-medium text-gray-700 mb-2">Locație</h4>
-                      <div className="bg-gray-100 p-2 rounded text-sm text-gray-700">
-                        {selectedProblem.location}
+                      <h4 className="text-sm font-medium text-gray-700 mb-2">Imagini</h4>
+                      <div className="border rounded overflow-hidden">
+                        <img 
+                          src={imageUrl} 
+                          alt="Problem" 
+                          className="w-full object-cover"
+                          style={{ maxHeight: '300px' }}
+                          onError={(e) => {
+                            console.error('Error loading image:', imageUrl);
+                            e.target.onerror = null;
+                            e.target.src = '/api/placeholder/320/240';
+                          }}
+                        />
                       </div>
                     </div>
-                    
-                    {(selectedProblem.media_url || selectedProblem.images) && (
-                      <>
-                        <h4 className="text-sm font-medium text-gray-700 mb-2">Imagini</h4>
-                        <div className="grid grid-cols-2 gap-2">
-                          {selectedProblem.media_url ? (
-                            <div className="border rounded overflow-hidden">
-                              <img src={selectedProblem.media_url} alt="Problem" className="w-full h-28 object-cover" />
-                            </div>
-                          ) : (
-                            selectedProblem.images && selectedProblem.images.map((img, idx) => (
-                              <div key={idx} className="border rounded overflow-hidden">
-                                <img src={img} alt={`Problem ${idx + 1}`} className="w-full h-28 object-cover" />
-                              </div>
-                            ))
-                          )}
-                        </div>
-                      </>
-                    )}
-                  </div>
+                  )}
                 </div>
               </div>
             </div>
-            <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-              <button 
-                type="button" 
-                className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 sm:ml-3 sm:w-auto sm:text-sm"
-                onClick={() => handleMarkAsSolved(selectedProblem.id)}
-              >
-                <CheckCircle className="mr-2" size={16} /> Marcați ca rezolvat
-              </button>
-              <button 
-                type="button" 
-                className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
-                onClick={handleClosePopup}
-              >
-                Închide
-              </button>
-            </div>
+          </div>
+          <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+            <button 
+              type="button" 
+              className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 sm:ml-3 sm:w-auto sm:text-sm"
+              onClick={() => handleMarkAsSolved(selectedProblem.id)}
+            >
+              <CheckCircle className="mr-2" size={16} /> Marcați ca rezolvat
+            </button>
+            <button 
+              type="button" 
+              className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+              onClick={handleClosePopup}
+            >
+              Închide
+            </button>
           </div>
         </div>
       </div>
-    );
-  };
+    </div>
+  );
+};
 
-  const renderTaskList = () => {
-    if (loading) {
-      return (
-        <div className="bg-white rounded-xl shadow-lg p-6 flex justify-center items-center">
-          <p className="text-lg text-gray-600">Se încarcă sarcinile...</p>
-        </div>
-      );
-    }
-    
-    if (!problems || problems.length === 0) {
-      return (
-        <div className="bg-white rounded-xl shadow-lg p-6">
-          <h2 className="text-xl font-semibold text-gray-800 mb-4">Sarcini în Departament</h2>
-          <p className="text-gray-600">Nu există sarcini active în acest moment.</p>
-        </div>
-      );
-    }
-    
+ const renderTaskList = () => {
+  console.log("tempProblems:", tempProblems);
+  if (loading) {
     return (
-      <div className="space-y-6">
-        <div className="bg-white rounded-xl shadow-lg p-6">
-          <h2 className="text-xl font-semibold text-gray-800 mb-4">
-            Sarcini în Departamentul {userData.departmentDetails?.name || userData.department}
-          </h2>
-          
-          <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
-            <table className="min-w-full divide-y divide-gray-300">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sm:pl-6">Problemă</th>
-                  <th scope="col" className="px-3 py-3.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Locație</th>
-                  <th scope="col" className="px-3 py-3.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dată</th>
-                  <th scope="col" className="px-3 py-3.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                  <th scope="col" className="relative py-3.5 pl-3 pr-4 sm:pr-6">
-                    <span className="sr-only">Acțiuni</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200 bg-white">
-                {problems.map((item) => {
-                  // Extragem problema din TempProblemGraph sau folosim direct problema
-                  const problem = item.problem || item;
-                  
-                  return (
-                    <tr key={item.id}>
-                      <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm sm:pl-6">
-                        <div className="flex items-center">
-                          <span className="text-xl mr-2">{getProblemIcon(problem.category || problem.type)}</span>
-                          <div>
-                            <div className="font-medium text-gray-900">{problem.title || problem.type}</div>
-                            <div className="text-gray-500">
-                              {problem.category ? problem.category.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : ''}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{problem.location}</td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                        {new Date(problem.createdAt || problem.reportDate).toLocaleDateString()}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                          ${problem.status === 'assigned' || problem.status === 'reported' ? 'bg-blue-100 text-blue-800' : 
-                            problem.status === 'in_progress' ? 'bg-yellow-100 text-yellow-800' : 
-                            problem.status === 'completed' || problem.status === 'solved' ? 'bg-green-100 text-green-800' :
-                            'bg-gray-100 text-gray-800'}`}
-                        >
-                          {problem.status === 'assigned' || problem.status === 'reported' ? 'Neasignat' : 
-                           problem.status === 'in_progress' ? 'În lucru' : 
-                           problem.status === 'completed' || problem.status === 'solved' ? 'Rezolvat' :
-                           'În așteptare'}
-                        </span>
-                      </td>
-                      <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
-                        <button
-                          onClick={() => handleProblemClick(item)}
-                          className="text-blue-600 hover:text-blue-900"
-                        >
-                          Vezi<span className="sr-only">, {problem.title || problem.type}</span>
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
+      <div className="bg-white rounded-xl shadow-lg p-6 flex justify-center items-center">
+        <p className="text-lg text-gray-600">Se încarcă sarcinile...</p>
       </div>
     );
-  };
+  }
+  
+  if (!tempProblems || tempProblems.length === 0) {
+    return (
+      <div className="bg-white rounded-xl shadow-lg p-6">
+        <h2 className="text-xl font-semibold text-gray-800 mb-4">Probleme detectate cu AI</h2>
+        <p className="text-gray-600">Nu există probleme detectate cu AI în acest moment.</p>
+      </div>
+    );
+  }
+  
+  return (
+    <div className="space-y-6">
+      <div className="bg-white rounded-xl shadow-lg p-6">
+        <h2 className="text-xl font-semibold text-gray-800 mb-4">
+          Probleme detectate cu AI
+        </h2>
+        
+        <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
+          <table className="min-w-full divide-y divide-gray-300">
+            <thead className="bg-gray-50">
+              <tr>
+                <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sm:pl-6">Problemă</th>
+                <th scope="col" className="px-3 py-3.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Locație</th>
+                <th scope="col" className="px-3 py-3.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Severitate</th>
+                <th scope="col" className="px-3 py-3.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Timp estimat</th>
+                <th scope="col" className="px-3 py-3.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th scope="col" className="relative py-3.5 pl-3 pr-4 sm:pr-6">
+                  <span className="sr-only">Acțiuni</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200 bg-white">
+              {tempProblems.map((item) => (
+                <tr key={item.id}>
+                  <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm sm:pl-6">
+                    <div className="flex items-center">
+                      <span className="text-xl mr-2">{getCategoryIcon(item.detected_category)}</span>
+                      <div>
+                        <div className="font-medium text-gray-900">
+                          {getCategoryLabel(item.detected_category)}
+                        </div>
+                        <div className="text-gray-500">
+                          {item.problem?.title || 'Fără titlu'}
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                    {item.problem?.location || `${item.latitude}, ${item.longitude}`}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getSeverityClass(item.severity_score)}`}>
+                      {getSeverityLabel(item.severity_score)} ({item.severity_score || 'N/A'})
+                    </span>
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                    <div className="flex items-center">
+                      <Clock size={16} className="mr-1 text-gray-400" />
+                      {item.estimated_fix_time || 'Necunoscut'}
+                    </div>
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                      ${item.problem?.status === 'assigned' || item.problem?.status === 'reported' ? 'bg-blue-100 text-blue-800' : 
+                        item.problem?.status === 'in_progress' ? 'bg-yellow-100 text-yellow-800' : 
+                        item.problem?.status === 'completed' || item.problem?.status === 'solved' ? 'bg-green-100 text-green-800' :
+                        'bg-gray-100 text-gray-800'}`}
+                    >
+                      {item.problem?.status === 'assigned' || item.problem?.status === 'reported' ? 'Neasignat' : 
+                       item.problem?.status === 'in_progress' ? 'În lucru' : 
+                       item.problem?.status === 'completed' || item.problem?.status === 'solved' ? 'Rezolvat' :
+                       'În așteptare'}
+                    </span>
+                  </td>
+                  <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
+                    <button
+                      onClick={() => handleProblemClick(item)}
+                      className="text-blue-600 hover:text-blue-900"
+                    >
+                      Vezi<span className="sr-only">, {item.problem?.title}</span>
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+};
   
   const renderStatistics = () => (
     <div className="space-y-6">

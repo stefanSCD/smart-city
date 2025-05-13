@@ -73,9 +73,9 @@ npm install
 
 ---
 
-### 6. Creează fișierul `.env`
+### 6. Modifică fișierul `.env`
 
-În directorul `smart-city-backend`, creează un fișier `.env` cu următorul conținut:
+În directorul `smart-city-backend`, modifică un fișierul `.env` cu următorul conținut:
 
 ```
 DB_HOST=localhost
@@ -105,22 +105,6 @@ Dacă nu e configurat, instalează:
 npm install pg
 ```
 
-Exemplu de cod:
-
-```js
-const { Pool } = require('pg');
-
-const pool = new Pool({
-  host: process.env.DB_HOST,
-  port: process.env.DB_PORT,
-  database: process.env.DB_NAME,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-});
-
-module.exports = pool;
-```
-
 ---
 
 ### 9. Rulează backend-ul
@@ -139,7 +123,7 @@ cd smart-city-ai-service
 python -m venv venv
 venv\Scripts\activate
 pip install -r requirements.txt
-python main.py
+uvicorn app:app --reload
 ```
 
 ---
@@ -157,7 +141,3 @@ npm start
 Aplicația se va deschide la `http://localhost:3000`.
 
 ---
-
-## 📬 Contact
-
-Pentru întrebări sau contribuții, contactează autorul proiectului sau deschide un Issue.

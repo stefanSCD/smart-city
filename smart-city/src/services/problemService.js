@@ -34,31 +34,43 @@ export const createProblem = async (problemData, mediaFile = null) => {
     }
     
     // Asigură-te că reported_by este un UUID valid sau lasă serverul să se ocupe de asta
-    // Dacă vrei să verifici în frontend:
-    
     if (problemData.reported_by && typeof problemData.reported_by === 'string' && 
         !problemData.reported_by.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
       console.log('Converting non-UUID reported_by to valid format');
-      problemData.reported_by = "00000000-0000-0000-0000-000000000000";
-       problemData.reported_by = uuidv4();
+      problemData.reported_by = uuidv4();
     }
-    
     
     console.log('Creating problem with data:', problemData);
     
     if (mediaFile) {
       const formData = new FormData();
+      
+      // Adaugă fișierul media
       formData.append('media', mediaFile);
       
+      // Adăugăm în mod explicit categoria și descrierea pentru procesarea AI
+      // Aceste câmpuri vor fi folosite de serviciul AI pentru a ghida analiza
+      if (problemData.category) {
+        formData.append('category', problemData.category);
+      }
+      
+      if (problemData.description) {
+        formData.append('description', problemData.description);
+      }
+      
+      // Adăugăm restul datelor
       Object.keys(problemData).forEach(key => {
-        if (typeof problemData[key] === 'object' && problemData[key] !== null) {
-          formData.append(key, JSON.stringify(problemData[key]));
-        } else {
-          formData.append(key, problemData[key]);
+        // Nu adăuga din nou category și description (le-am adăugat deja mai sus)
+        if (key !== 'category' && key !== 'description') {
+          if (typeof problemData[key] === 'object' && problemData[key] !== null) {
+            formData.append(key, JSON.stringify(problemData[key]));
+          } else {
+            formData.append(key, problemData[key]);
+          }
         }
       });
       
-      console.log('Sending problem with media to:', `${API_URL}/problems`);
+      console.log('Sending problem with media to:', `/problems`);
       
       const response = await api.post('/problems', formData, {
         headers: {
@@ -68,7 +80,7 @@ export const createProblem = async (problemData, mediaFile = null) => {
       
       return response.data;
     } else {
-      console.log('Sending problem without media to:', `${API_URL}/problems`);
+      console.log('Sending problem without media to:', `/problems`);
       const response = await api.post('/problems', problemData);
       return response.data;
     }

@@ -1,4 +1,4 @@
-// src/App.js
+// Modificat App.js - Redirecționare directă la login
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 
@@ -40,8 +40,8 @@ function App() {
   return (
     <Router>
       <Routes>
-        {/* Redirecționare de la ruta principală către dashboard */}
-        <Route path="/" element={redirectToDashboard()} />
+        {/* Redirecționare de la ruta principală direct către login */}
+        <Route path="/" element={<Navigate to="/login" />} />
         
         {/* Rute de autentificare accesibile public */}
         <Route path="/login" element={<LoginForm />} />
@@ -76,19 +76,10 @@ function App() {
             </ProtectedRoute>
           }
         />
+
         
-        {/* Hartă locație - accesibilă pentru toți utilizatorii autentificați */}
-        <Route
-          path="/map"
-          element={
-            <ProtectedRoute>
-              <LocationMap />
-            </ProtectedRoute>
-          }
-        />
-        
-        {/* Rută pentru pagini care nu există - redirecționare către dashboard */}
-        <Route path="*" element={redirectToDashboard()} />
+        {/* Rută pentru pagini care nu există - redirecționare către login */}
+        <Route path="*" element={<Navigate to="/login" />} />
       </Routes>
     </Router>
   );

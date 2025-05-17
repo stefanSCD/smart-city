@@ -138,73 +138,74 @@ const UserDashboard = () => {
 
 
   // Modifică funcția submitFastReport
-  const submitFastReport = async () => {
-    if (isSubmitting) return; // Evită trimiteri multiple
+  // Modificare în funcția submitFastReport din UserDashboard.js
+const submitFastReport = async () => {
+  if (isSubmitting) return; // Evită trimiteri multiple
+  
+  if (!location) {
+    alert('Vă rugăm să permiteți accesul la locație pentru a continua.');
+    return;
+  }
+  
+  try {
+    setIsSubmitting(true);
     
-    if (!location) {
-      alert('Vă rugăm să permiteți accesul la locație pentru a continua.');
-      return;
+    // Creăm obiectul pentru problema raportată
+    const problemData = {
+      title: "Raport rapid",
+      description: "Problemă raportată prin Fast Report", // Descriere simplă
+      location: `${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}`,
+      latitude: parseFloat(location.lat.toFixed(6)),
+      longitude: parseFloat(location.lng.toFixed(6)),
+      category: 'fast_report', // Categoria specifică pentru raport rapid
+      status: 'reported'
+    };
+    
+    console.log('Submitting fast report data:', problemData);
+    
+    // Adăugăm media dacă există
+    let createdProblem;
+    if (uploadedMedia) {
+      createdProblem = await createProblem(problemData, uploadedMedia);
+    } else {
+      createdProblem = await createProblem(problemData);
     }
     
+    console.log('Problem created successfully:', createdProblem);
+    
+    // Afișează un mesaj de succes
+    alert('Raportul a fost trimis cu succes!');
+    
+    // Resetează formularul
+    setActiveSection('dashboard');
+    setUploadedMedia(null);
+    setMediaPreview(null);
+    setLocation(null);
+    
+    // Actualizează lista de probleme
     try {
-      setIsSubmitting(true);
-      
-      // Creăm obiectul pentru problema raportată fără reported_by
-      const problemData = {
-        title: "Raport rapid",
-        description: "Problemă raportată prin Fast Report",
-        location: `${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}`,
-        latitude: parseFloat(location.lat.toFixed(6)),
-        longitude: parseFloat(location.lng.toFixed(6)),
-        category: 'general',
-        status: 'reported'
-        // Nu includem reported_by deloc, lăsând backend-ul să gestioneze această valoare
-      };
-      
-      console.log('Submitting fast report data:', problemData);
-      
-      // Adăugăm media dacă există
-      let createdProblem;
-      if (uploadedMedia) {
-        createdProblem = await createProblem(problemData, uploadedMedia);
-      } else {
-        createdProblem = await createProblem(problemData);
-      }
-      
-      console.log('Problem created successfully:', createdProblem);
-      
-      // Afișează un mesaj de succes
-      alert('Raportul a fost trimis cu succes!');
-      
-      // Resetează formularul
-      setActiveSection('dashboard');
-      setUploadedMedia(null);
-      setMediaPreview(null);
-      setLocation(null);
-      
-      // Actualizează lista de probleme
-      try {
-        const updatedProblems = await getProblems();
-        setProblems(updatedProblems);
-      } catch (err) {
-        console.warn('Could not refresh problems list:', err);
-      }
-    } catch (error) {
-      console.error('Eroare la trimiterea raportului:', error);
-      let errorMessage = 'Trimiterea raportului a eșuat. ';
-      
-      if (error.response?.data?.message) {
-        errorMessage += error.response.data.message;
-      } else if (error.message) {
-        errorMessage += error.message;
-      }
-      
-      alert(errorMessage);
-    } finally {
-      setIsSubmitting(false);
+      const updatedProblems = await getProblems();
+      setProblems(updatedProblems);
+    } catch (err) {
+      console.warn('Could not refresh problems list:', err);
     }
-  };
+  } catch (error) {
+    console.error('Eroare la trimiterea raportului:', error);
+    let errorMessage = 'Trimiterea raportului a eșuat. ';
+    
+    if (error.response?.data?.message) {
+      errorMessage += error.response.data.message;
+    } else if (error.message) {
+      errorMessage += error.message;
+    }
+    
+    alert(errorMessage);
+  } finally {
+    setIsSubmitting(false);
+  }
+};
 // Modifică și funcția submitReport similar
+// Modificare în funcția submitReport din UserDashboard.js
 const submitReport = async () => {
   if (isSubmitting) return;
   
@@ -222,13 +223,40 @@ const submitReport = async () => {
     
     const isValidUUID = userId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
     
+    // Convertește tipul problemei într-o categorie standard pentru AI
+    let aiCategory = 'general';
+    
+    // Mapează tipurile de probleme la categoriile AI
+    switch(problemType.toLowerCase()) {
+      case 'potholes':
+        aiCategory = 'primarie'; // sau 'drumuri_publice'
+        break;
+      case 'unauthorized graffiti':
+        aiCategory = 'politie';
+        break;
+      case 'overflowing trash bins':
+        aiCategory = 'salubrizare';
+        break;
+      case 'illegally parked cars':
+        aiCategory = 'politie';
+        break;
+      case 'street light issues':
+        aiCategory = 'iluminat_public';
+        break;
+      case 'green space issues':
+        aiCategory = 'spatii_verzi';
+        break;
+      default:
+        aiCategory = '';
+    }
+    
     const problemData = {
       title: problemType || 'Problemă raportată',
       description: description || `Problemă raportată: ${problemType || 'Nedefinită'}`,
       location: location ? `${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}` : '',
       latitude: location ? parseFloat(location.lat.toFixed(6)) : null,
       longitude: location ? parseFloat(location.lng.toFixed(6)) : null,
-      category: (problemType || 'general').toLowerCase().replace(/\s+/g, '_'),
+      category: aiCategory, // Folosim categoria potrivită pentru AI
       status: 'reported',
       reported_by: isValidUUID ? userId : null
     };
@@ -619,22 +647,6 @@ const submitReport = async () => {
               >
                 Change Password
               </button>
-            </div>
-          </div>
-        </div>
-        
-       
-        
-        {/* Secțiunea pentru detalii aplicație */}
-        <div className="pt-4 border-t border-gray-200">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">About</h3>
-          <div className="bg-gray-50 p-4 rounded-md">
-            <p className="text-sm text-gray-600">Smart City App v1.0.0</p>
-            <p className="text-sm text-gray-600 mt-1">© 2025 Smart City Company</p>
-            <div className="mt-3">
-              <a href="#" className="text-sm text-blue-600 hover:underline">Terms of Service</a>
-              <span className="mx-2 text-gray-400">|</span>
-              <a href="#" className="text-sm text-blue-600 hover:underline">Privacy Policy</a>
             </div>
           </div>
         </div>

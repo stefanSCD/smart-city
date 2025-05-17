@@ -312,9 +312,16 @@ const EmployeeDashboard = () => {
 };
 
   const handleProblemClick = (problem) => {
-    // Pentru TempProblemGraph avem problema în sub-obiectul 'problem'
-    setSelectedProblem(problem.problem || problem);
-  };
+  // Construim obiectul complet cu toate datele necesare
+  const fullProblem = problem.problem || problem;
+  
+  // Adăugăm explicit detected_objects la problema selectată
+  if (problem.detected_objects) {
+    fullProblem.detected_objects = problem.detected_objects;
+  }
+  
+  setSelectedProblem(fullProblem);
+};
 
   const handleClosePopup = () => {
     setSelectedProblem(null);
@@ -400,7 +407,7 @@ const EmployeeDashboard = () => {
                     </div>
                   </div>
                   
-                  {/* Secțiunea pentru Hartă - ADĂUGAȚI AICI */}
+                  {/* Secțiunea pentru Hartă */}
                   <div className="mb-4">
                     <h4 className="text-sm font-medium text-gray-700 mb-2">Locație</h4>
                     {problemLocation ? (
@@ -422,7 +429,7 @@ const EmployeeDashboard = () => {
                     )}
                   </div>
                   
-                  {/* Secțiunea pentru imagini - existentă */}
+                  {/* Secțiunea pentru imagini */}
                   {imageUrl && (
                     <div className="mb-4">
                       <h4 className="text-sm font-medium text-gray-700 mb-2">Imagini</h4>
@@ -438,6 +445,20 @@ const EmployeeDashboard = () => {
                             e.target.src = '/api/placeholder/320/240';
                           }}
                         />
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Secțiunea pentru Obiecte Detectate - NOU */}
+                  {selectedProblem.detected_objects && (
+                    <div className="mb-4">
+                      <h4 className="text-sm font-medium text-gray-700 mb-2">Obiecte Detectate (AI)</h4>
+                      <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                        <pre className="text-xs overflow-auto max-h-40 whitespace-pre-wrap">
+                          {typeof selectedProblem.detected_objects === 'string' 
+                            ? selectedProblem.detected_objects 
+                            : JSON.stringify(selectedProblem.detected_objects, null, 2)}
+                        </pre>
                       </div>
                     </div>
                   )}
@@ -970,13 +991,7 @@ const EmployeeDashboard = () => {
       </div>
       
       {/* Footer */}
-      <footer className="bg-white border-t border-gray-200 py-4">
-        <div className="mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center text-sm text-gray-500">
-            <p>Smart City &copy; 2025. Toate drepturile rezervate.</p>
-          </div>
-        </div>
-      </footer>
+      
     </div>
   );
 };

@@ -99,9 +99,6 @@ const FancyLogin = () => {
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
-              <div className="flex justify-end">
-                <a href="#" className="text-sm text-blue-300 hover:text-blue-100 mt-2">Ai uitat parola?</a>
-              </div>
             </div>
             
             <button

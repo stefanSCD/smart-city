@@ -57,7 +57,7 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true
     },
     detected_objects: {
-      type: DataTypes.JSONB,
+      type: DataTypes.STRING,
       allowNull: true,
       defaultValue: {}
     },

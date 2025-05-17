@@ -138,8 +138,18 @@ const createProblem = async (req, res) => {
         const aiService = require('../services/aiService');
         const { TempProblemGraph } = require('../models');
         
+        // Pregătim datele pentru procesarea AI
+        const aiProcessData = {
+          category: req.body.category || null,  // Transmitem categoria specificată de utilizator
+          description: req.body.description || null // Transmitem descrierea problemei
+        };
+        
         // Procesăm imaginea asincron (fără await pentru a nu bloca răspunsul)
-        aiService.processProblemImage(newProblem.id, newProblem.media_url)
+        aiService.processProblemImage(
+          newProblem.id,
+          newProblem.media_url,
+          aiProcessData // Transmitem datele suplimentare
+        )
           .then(aiResults => {
             // Salvăm rezultatele în baza de date
             return TempProblemGraph.create({

@@ -11,18 +11,15 @@ exports.uploadAvatar = async (req, res) => {
     const userId = req.user.id;
     const avatarUrl = `/images/avatars/${req.file.filename}`;
 
-    // Actualizează utilizatorul cu noul avatar
     await User.update(
       { avatar: avatarUrl },
       { where: { id: userId } }
     );
 
-    // Obține utilizatorul actualizat
     const updatedUser = await User.findByPk(userId, {
       attributes: { exclude: ['password'] }
     });
 
-    // Formatează răspunsul
     const formattedUser = {
       id: updatedUser.id,
       name: `${updatedUser.prenume} ${updatedUser.nume}`.trim(),
@@ -40,26 +37,22 @@ exports.uploadAvatar = async (req, res) => {
 
 exports.changePassword = async (req, res) => {
   try {
-    const userId = req.user.id; // ID-ul utilizatorului din token
+    const userId = req.user.id;
     const { oldPassword, newPassword } = req.body;
 
-    // Verificăm dacă utilizatorul există
     const user = await User.findByPk(userId);
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Verificăm parola veche
     const isMatch = await bcrypt.compare(oldPassword, user.password);
     if (!isMatch) {
       return res.status(401).json({ message: 'Old password is incorrect' });
     }
 
-    // Hash noua parolă
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(newPassword, salt);
 
-    // Actualizăm parola utilizatorului
     user.password = hashedPassword;
     await user.save();
 
@@ -69,11 +62,10 @@ exports.changePassword = async (req, res) => {
   }
 };
 
-// Obține toți utilizatorii
 exports.getAllUsers = async (req, res) => {
   try {
     const users = await User.findAll({
-      attributes: { exclude: ['password'] } // Nu includem parola în răspuns
+      attributes: { exclude: ['password'] }
     });
     res.json(users);
   } catch (error) {
@@ -81,7 +73,6 @@ exports.getAllUsers = async (req, res) => {
   }
 };
 
-// Obține un utilizator după ID
 exports.getUserById = async (req, res) => {
   try {
     const user = await User.findByPk(req.params.id, {
@@ -98,10 +89,8 @@ exports.getUserById = async (req, res) => {
   }
 };
 
-// Creează un utilizator nou
 exports.createUser = async (req, res) => {
   try {
-    // Hash parola
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(req.body.password, salt);
     
@@ -112,7 +101,6 @@ exports.createUser = async (req, res) => {
     
     const newUser = await User.create(userData);
     
-    // Nu trimitem parola înapoi
     const { password, ...userWithoutPassword } = newUser.toJSON();
     
     res.status(201).json(userWithoutPassword);
@@ -121,7 +109,6 @@ exports.createUser = async (req, res) => {
   }
 };
 
-// Obține rapoartele recente ale unui utilizator
 exports.getUserRecentReports = async (req, res) => {
   try {
     const { userId } = req.query;
@@ -131,13 +118,12 @@ exports.getUserRecentReports = async (req, res) => {
       return res.status(400).json({ error: 'User ID is required' });
     }
 
-    // Modificarea este aici - folosește "createdAt" în loc de "created_at" pentru ORDER BY
     const recentReports = await Problem.findAll({
       where: {
         reported_by: userId
       },
       order: [
-        ['createdAt', 'DESC'] // Folosim createdAt în loc de created_at
+        ['createdAt', 'DESC'] 
       ],
       limit: 5
     });
@@ -148,18 +134,16 @@ exports.getUserRecentReports = async (req, res) => {
     return res.status(500).json({ error: 'Internal server error' });
   }
 };
-// Actualizează un utilizator
+
 exports.updateUser = async (req, res) => {
   try {
-    const userId = req.user.id; // Obține ID-ul din token
+    const userId = req.user.id;
     const { name, email, phone } = req.body;
     
-    // Separă numele complet în nume și prenume
     const nameParts = name.split(' ');
     const prenume = nameParts[0] || '';
     const nume = nameParts.slice(1).join(' ') || '';
     
-    // Actualizează utilizatorul
     const updated = await User.update(
       {
         nume: nume,
@@ -176,12 +160,10 @@ exports.updateUser = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
     
-    // Obține utilizatorul actualizat
     const updatedUser = await User.findByPk(userId, {
       attributes: { exclude: ['password'] }
     });
     
-    // Formatează datele pentru răspuns (pentru a se potrivi cu așteptările frontend-ului)
     const formattedUser = {
       id: updatedUser.id,
       name: `${updatedUser.prenume} ${updatedUser.nume}`.trim(),
@@ -197,44 +179,10 @@ exports.updateUser = async (req, res) => {
   }
 };
 
-// Obține notificările unui utilizator
-exports.getUserNotifications = async (req, res) => {
-  try {
-    console.log('Starting getUserNotifications with userId:', req.query.userId);
-    
-    const userId = req.query.userId;
-    if (!userId) {
-      return res.status(400).json({ message: 'User ID required' });
-    }
-    
-    // Verifică dacă utilizatorul există
-    const user = await User.findByPk(userId);
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
-    }
-    
-    // Obține notificările utilizatorului
-    const notifications = await Notification.findAll({
-      where: { user_id: userId },
-      order: [['created_at', 'DESC']],
-      limit: 10
-    });
-    
-    console.log(`Found ${notifications.length} notifications for user ${userId}`);
-    
-    res.json(notifications);
-  } catch (error) {
-    console.error('Error in getUserNotifications:', error);
-    res.status(500).json({ message: 'Error retrieving notifications', error: error.message });
-  }
-};
-
-// Obține profilul unui utilizator
 exports.getUserProfile = async (req, res) => {
   try {
     const userId = req.user.id;
 
-    // Găsește utilizatorul
     const user = await User.findByPk(userId, {
       attributes: { exclude: ['password'] }
     });
@@ -243,7 +191,6 @@ exports.getUserProfile = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Formatează datele pentru răspuns
     const formattedUser = {
       id: user.id,
       name: `${user.prenume} ${user.nume}`.trim(),
@@ -259,7 +206,6 @@ exports.getUserProfile = async (req, res) => {
   }
 };
 
-// Șterge un utilizator
 exports.deleteUser = async (req, res) => {
   try {
     const deleted = await User.destroy({
@@ -276,14 +222,12 @@ exports.deleteUser = async (req, res) => {
   }
 };
 
-// Obține problemele unui utilizator
 exports.getUserProblems = async (req, res) => {
   try {
     const userId = req.params.id;
     
-    // Obține problemele utilizatorului direct
     const problems = await Problem.findAll({
-      where: { reported_by: userId }, // Folosește numele corect al coloanei
+      where: { reported_by: userId },
       order: [['created_at', 'DESC']]
     });
     

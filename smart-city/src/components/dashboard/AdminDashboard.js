@@ -32,8 +32,7 @@ import {
 import { 
   getAllEmployees, addEmployee, updateEmployee, deleteEmployee, resetEmployeePassword,
   getAllDepartments, addDepartment,
-  getAllCameras, addCamera, updateCamera, deleteCamera, toggleCameraAI, getCameraStatistics,
-  getAllNotifications, getCameraAlerts
+  getAllCameras, addCamera, updateCamera, deleteCamera, toggleCameraAI, getCameraStatistics, getCameraAlerts
 } from '../../services/adminService';
 
 const AdminDashboard = () => {
@@ -72,12 +71,10 @@ const AdminDashboard = () => {
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [employeesViewMode, setEmployeesViewMode] = useState('grid');
 
-  // State pentru notificări și date admin
   const [admin, setAdmin] = useState({
     name: "Admin User",
     email: "admin@smartcity.com",
-    avatar: "/api/placeholder/200/200",
-    notifications: []
+    avatar: "/api/placeholder/200/200"
   });
 
   // State pentru încărcare și erori
@@ -85,14 +82,12 @@ const AdminDashboard = () => {
     employees: false,
     departments: false,
     cameras: false,
-    notifications: false,
     statistics: false
   });
   const [error, setError] = useState({
     employees: null,
     departments: null,
     cameras: null,
-    notifications: null,
     statistics: null
   });
 
@@ -113,7 +108,6 @@ const AdminDashboard = () => {
       await fetchDepartments();
       await fetchCameras();
       await fetchCameraStatistics();
-      await fetchNotifications();
     };
 
     loadInitialData();
@@ -207,34 +201,7 @@ const AdminDashboard = () => {
     }
   };
 
-  const fetchNotifications = async () => {
-    setLoading(prev => ({ ...prev, notifications: true }));
-    setError(prev => ({ ...prev, notifications: null }));
-    
-    try {
-      const notificationsData = await getAllNotifications();
-      // Formatăm notificările pentru a se potrivi cu formatul așteptat
-      const formattedNotifications = notificationsData.map(notification => ({
-        id: notification.id,
-        message: notification.message,
-        isRead: notification.is_read,
-        date: new Date(notification.created_at).toLocaleString('ro-RO')
-      }));
-      
-      setAdmin(prev => ({ ...prev, notifications: formattedNotifications }));
-      
-      // Obține și alertele pentru camere
-      const cameraAlerts = await getCameraAlerts();
-      // Aici am putea actualiza alte state-uri cu alertele de la camere
-    } catch (err) {
-      console.error('Error fetching notifications:', err);
-      setError(prev => ({ ...prev, notifications: 'Nu s-au putut încărca notificările. Încercați din nou.' }));
-    } finally {
-      setLoading(prev => ({ ...prev, notifications: false }));
-    }
-  };
-  // src/components/dashboard/AdminDashboard.js - Partea 2: Funcții pentru gestionarea angajaților
-  // Funcția pentru preview stream-uri
+
   const toggleStreamPreview = (id) => {
     setPreviewStreams(prev => ({
       ...prev,
@@ -678,18 +645,7 @@ const AdminDashboard = () => {
                   <h3 className="font-medium text-gray-800">{source.name}</h3>
                   <p className="text-sm text-gray-600 mt-1">{source.location}</p>
                   <div className="flex justify-between items-center mt-3">
-                    <div>
-                      <span className="text-xs text-gray-500">Tip: {source.type}</span>
-                      <div className="flex items-center mt-1">
-                        <span className="text-xs text-gray-500 mr-2">AI:</span>
-                        <button 
-                          onClick={() => toggleAI(source.id)}
-                          className={`relative inline-flex h-6 w-11 items-center rounded-full ${source.aiEnabled ? 'bg-blue-600' : 'bg-gray-300'}`}
-                        >
-                          <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${source.aiEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
-                        </button>
-                      </div>
-                    </div>
+
                     <div className="flex space-x-1">
                       <button 
                         onClick={() => handleEditCamera(source)}

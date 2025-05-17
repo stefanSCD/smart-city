@@ -391,7 +391,7 @@ exports.updateCamera = async (req, res) => {
       // Actualizăm camera direct în baza de date
       const [updated] = await sequelize.query(`
         UPDATE cameras
-        SET name = ?, location = ?, type = ?, status = ?, ai_enabled = ?, updated_at = NOW()
+        SET name = ?, location = ?, type = ?, status = ?, "aiEnabled" = ?, updated_at = NOW()
         WHERE id = ?
       `, {
         replacements: [name, location, type, status, aiEnabled, id]
@@ -403,7 +403,7 @@ exports.updateCamera = async (req, res) => {
       
       // Obținem camera actualizată
       const [result] = await sequelize.query(`
-        SELECT id, name, location, type, status, stream_url as "streamUrl", ai_enabled as "aiEnabled", detections, created_at as "createdAt", updated_at as "updatedAt"
+        SELECT id, name, location, type, status, "streamUrl" , "aiEnabled", detections, created_at as "createdAt", updated_at as "updatedAt"
         FROM cameras
         WHERE id = ?
       `, {

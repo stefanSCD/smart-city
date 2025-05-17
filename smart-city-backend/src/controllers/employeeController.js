@@ -4,8 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const { Op } = require('sequelize');
 
-// ============= FUNCȚII EXISTENTE =============
-// Obține toți angajații
+
 exports.getAllEmployees = async (req, res) => {
   try {
     const employees = await User.findAll({

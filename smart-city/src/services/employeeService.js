@@ -1,5 +1,6 @@
 // src/services/employeeService.js
 import { api } from './authService';
+import { getUserData } from './userService';
 
 // Obține profilul angajatului autentificat
 export const getEmployeeProfile = async () => {
@@ -23,10 +24,19 @@ export const updateEmployeeProfile = async (profileData) => {
   }
 };
 
+
+
 export const getAllTempProblemGraphs = async () => {
   try {
     const response = await api.get('/temp-problem-graphs');
-    return response.data;
+    const allProblems = response.data;
+    const userString = localStorage.getItem('user');
+    const user = userString ? JSON.parse(userString) : null;
+    const filteredProblems = allProblems.filter(
+      (problem) => problem.detected_category === user.department
+    );
+    return filteredProblems;
+
   } catch (error) {
     console.error('Eroare la încărcarea problemelor AI:', error);
     throw error;

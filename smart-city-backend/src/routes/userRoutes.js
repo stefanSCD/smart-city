@@ -5,7 +5,6 @@ const { authenticateToken } = require('../middleware/auth');
 const multer = require('multer');
 const path = require('path');
 
-// Debugging - verificăm dacă middleware-ul de autentificare este o funcție
 console.log('authenticateToken is a function:', typeof authenticateToken === 'function');
 console.log('userController.uploadAvatar is a function:', typeof userController.uploadAvatar === 'function');
 console.log('All userController methods:', Object.keys(userController));
@@ -32,9 +31,7 @@ const upload = multer({
     }
 });
 
-// Rute pentru utilizatori - utilizăm try/catch pentru a verifica explicit
 try {
-  // Verifică dacă upload.single returnează o funcție
   const uploadMiddleware = upload.single('avatar');
   console.log('upload.single is a function:', typeof uploadMiddleware === 'function');
   
@@ -45,7 +42,6 @@ try {
 
 router.put('/update', authenticateToken, userController.updateUser);
 router.get('/reports/recent', userController.getUserRecentReports);
-router.get('/notifications', userController.getUserNotifications);
 router.get('/profile', authenticateToken, userController.getUserProfile);
 router.post('/change-password', authenticateToken, userController.changePassword);
 router.get('/', authenticateToken, userController.getAllUsers);

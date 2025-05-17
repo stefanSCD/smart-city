@@ -39,14 +39,7 @@ export const createProblem = async (problemData, mediaFile = null) => {
     if (problemData.reported_by && typeof problemData.reported_by === 'string' && 
         !problemData.reported_by.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
       console.log('Converting non-UUID reported_by to valid format');
-      // Opțiunea 1: Folosește un UUID predefinit pentru a informa serverul că trebuie să-l înlocuiască
       problemData.reported_by = "00000000-0000-0000-0000-000000000000";
-      
-      // Opțiunea 2: Generează un UUID bazat pe ID-ul numeric pentru consistență
-      // const numericId = problemData.reported_by;
-      // problemData.reported_by = `00000000-0000-0000-0000-${numericId.padStart(12, '0')}`;
-      
-      // Opțiunea 3: Generează un UUID complet nou
        problemData.reported_by = uuidv4();
     }
     

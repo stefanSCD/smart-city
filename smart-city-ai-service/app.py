@@ -1,208 +1,225 @@
-from fastapi import FastAPI, File, UploadFile, Form, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
-from utils.model_loader import ProblemDetectionModel
-from PIL import Image
-import io
+"""
+Smart City AI Service - API pentru detectarea problemelor urbane
+"""
 import os
-import json
 import base64
-import traceback
+import json
+import logging
+from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from azure.ai.inference import ChatCompletionsClient
+from azure.ai.inference.models import SystemMessage, UserMessage
+from azure.core.credentials import AzureKeyCredential
+from dotenv import load_dotenv
+from datetime import datetime
+import uvicorn
+import tempfile
 
-# Initializare FastAPI
-app = FastAPI(title="Smart City AI Service")
+# Încărcăm variabilele de mediu
+load_dotenv()
 
-# CORS pentru a permite cereri de la frontend
+# Configurare logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+# Configurare Azure AI
+token = os.environ.get("AZURE_API_KEY", "")
+endpoint = os.environ.get("AZURE_ENDPOINT", "https://models.inference.ai.azure.com")
+model_name = os.environ.get("AZURE_MODEL_NAME", "gpt-4o")
+
+# Inițializare client Azure AI
+client = ChatCompletionsClient(
+    endpoint=endpoint,
+    credential=AzureKeyCredential(token),
+)
+
+# Creează aplicația FastAPI
+app = FastAPI(title="Smart City AI Service",
+              description="API pentru detectarea problemelor urbane din imagini",
+              version="1.0.0")
+
+# Configurare CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # În producție, specificați originile exacte
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Inițializare model AI
-MODEL_PATH = os.getenv("MODEL_PATH", "./models/final_best.pt")
-problem_detector = ProblemDetectionModel(MODEL_PATH)
+# Prompt-uri pentru Azure AI
+system_prompt = (
+    "Ești un asistent inteligent pentru Smart City specializat în identificarea problemelor urbane și atribuirea lor departamentului potrivit pentru rezolvare. "
+    "Analizează imaginile pentru a detecta și raporta următoarele tipuri de probleme, asociate cu departamentele responsabile: "
 
+    "1. SALUBRIZARE - responsabil pentru: coșuri de gunoi pline/deteriorate, containere de reciclare supraaglomerate, "
+    " nereguli în centrele de reciclare, curățarea străzilor, a parcurilor și a zonelor publice. "
 
-# Endpoint pentru ruta principală
+    "2. POLIȚIE - responsabil pentru: graffiti ilegal, parcări ilegale, activități comerciale ilegale pe trotuar, "
+    "biciclete sau trotinete lăsate haotic pe trotuar, acte de vandalism, persoane suspecte, încălcări ale legii. "
+
+    "3. PRIMĂRIE - responsabil pentru: clădiri în stare de degradare, grafitti ilegal"
+
+    "4. SPAȚII VERZI - responsabil pentru: iarbă netunsă, copaci căzuți sau crengi rupte periculoase, "
+    "întreținerea parcurilor, plantarea și îngrijirea arborilor și arbuștilor, amenajarea spațiilor verzi. "
+
+    "5. ILUMINAT PUBLIC - responsabil pentru: stâlpi de iluminat nefuncționali, "
+    "zone cu iluminat public aprins ziua, întreținerea sistemului de iluminat public. "
+
+    "6. DRUMURI PUBLICE - responsabil pentru: gropi în șosea, semne de circulație lipsă sau deteriorate, "
+    "repararea drumurilor, trotuarelor și aleilor, întreținerea infrastructurii rutiere. Consideră aceste probleme ca fiind în responsabilitatea departamentului PRIMĂRIE. "
+
+    "Pentru fiecare imagine, identifică exact UN SINGUR departament responsabil principal (cel mai potrivit) dintre: salubrizare, politie, primarie, iluminat_public, spatii_verzi. "
+    "Chiar dacă vezi mai multe probleme, alege departamentul cel mai potrivit pentru problema principală sau cea mai gravă. "
+    "În câmpul detected_category din JSON, pune DOAR numele departamentului responsabil, nu alte informații.  "
+    "și oferă o evaluare a urgenței intervenției necesare (un numar de la 1 la 10, 1 insemnand minim si 10 maxim). "
+)
+
+async def analyze_image(image_data):
+    """
+    Analizează o imagine pentru a detecta probleme urbane.
+
+    Args:
+        image_data (bytes): Datele imaginii în format binar
+
+    Returns:
+        dict: Rezultatul analizei în format JSON
+    """
+    try:
+        # Convertim imaginea în base64
+        base64_image = base64.b64encode(image_data).decode('utf-8')
+
+        vision_prompt = {
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Analizează această imagine și identifică orice problemă urbană prezentă."
+                            "Returnează răspunsul DOAR în format JSON cu următoarea structură exactă:"
+                            " {\"detected_category\": \"[departamentul responsabil (alege exact unul): salubrizare, politie, primarie, iluminat_public, spatii_verzi, drumuri_publice]\", \"severity_score\": [număr între 1-10, unde 1 este minim și 10 este maxim], \"estimated_fix_time\": \"[timpul estimat pentru remediere: un numar de zile sau ore estimat de exemplu : 2 ore, 1 zi , etc ]\"}. Nu include text suplimentar, doar răspunsul JSON."
+                },
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/jpeg;base64,{base64_image}"
+                    }
+                }
+            ]
+        }
+
+        messages = [SystemMessage(system_prompt), UserMessage(vision_prompt)]
+
+        logger.info("Trimit imagine pentru analiză")
+
+        response = client.complete(
+            messages=messages,
+            temperature=0.7,
+            top_p=0.95,
+            max_tokens=300,
+            model=model_name
+        )
+
+        answer = response.choices[0].message.content
+        logger.info("Am primit răspuns pentru analiza imaginii")
+
+        # Asigură-te că răspunsul este JSON valid
+        try:
+            result = json.loads(answer)
+            return result
+        except json.JSONDecodeError:
+            logger.error(f"Răspunsul nu este un JSON valid: {answer}")
+            # Încercăm să extragem doar partea JSON din răspuns
+            import re
+            json_match = re.search(r'{.*}', answer, re.DOTALL)
+            if json_match:
+                try:
+                    result = json.loads(json_match.group(0))
+                    return result
+                except:
+                    pass
+
+            # Returnăm un JSON standard de eroare dacă nu putem parsa răspunsul
+            return {
+                "detected_category": ["error"],
+                "severity_score": 0,
+                "estimated_fix_time": "0",
+                "detected_objects": {
+                    "error": {
+                        "descriere": "Nu s-a putut analiza imaginea",
+                        "problema": "Eroare la procesarea răspunsului AI"
+                    }
+                }
+            }
+
+    except Exception as e:
+        logger.error(f"Eroare la analiza imaginii: {str(e)}")
+        return {
+            "detected_category": ["error"],
+            "severity_score": 0,
+            "estimated_fix_time": "0",
+            "detected_objects": {
+                "error": {
+                    "descriere": f"Eroare: {str(e)}",
+                    "problema": "Eroare la comunicarea cu serviciul AI"
+                }
+            }
+        }
+
 @app.get("/")
 async def root():
-    """Endpoint principal pentru API-ul Smart City AI"""
-    return {
-        "name": "Smart City AI Service",
-        "version": "1.0.0",
-        "status": "running",
-        "endpoints": [
-            {"path": "/", "method": "GET", "description": "Această pagină"},
-            {"path": "/docs", "method": "GET", "description": "Documentația API (Swagger)"},
-            {"path": "/process", "method": "POST", "description": "Procesează o imagine încărcată"},
-            {"path": "/process-base64", "method": "POST", "description": "Procesează o imagine în format base64"},
-            {"path": "/test-ui", "method": "GET", "description": "Interfață simplă pentru testare"}
-        ]
-    }
+    return {"message": "Smart City AI Service API", "status": "active"}
 
-
-@app.post("/process")
-async def process_image(
-        problem_id: int = Form(...),
-        image: UploadFile = File(...)
-):
-    try:
-        # Citim conținutul imaginii
-        contents = await image.read()
-        pil_image = Image.open(io.BytesIO(contents))
-
-        # Procesăm imaginea cu modelul
-        results = problem_detector.predict(pil_image)
-
-        # Returnăm rezultatele fără a salva în baza de date
-        return {
-            "problemId": problem_id,
-            "results": results
-        }
-    except Exception as e:
-        # Adăugăm traceback pentru debugging
-        error_traceback = traceback.format_exc()
-        print(f"Error processing image: {str(e)}\n{error_traceback}")
-        raise HTTPException(status_code=500, detail=f"Error processing image: {str(e)}")
-
-
-@app.post("/process-base64")
-async def process_base64_image(data: dict):
-    try:
-        # Extragem datele
-        problem_id = data.get("problemId")
-        base64_image = data.get("image")
-
-        if not problem_id or not base64_image:
-            raise HTTPException(status_code=400, detail="Missing problemId or image data")
-
-        # Decodăm imaginea din base64
-        try:
-            image_data = base64.b64decode(base64_image)
-            pil_image = Image.open(io.BytesIO(image_data))
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Error decoding image: {str(e)}")
-
-        # Procesăm imaginea cu modelul
-        results = problem_detector.predict(pil_image)
-
-        # Returnăm rezultatele fără a salva în baza de date
-        return {
-            "problemId": problem_id,
-            "results": results
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        # Adăugăm traceback pentru debugging
-        error_traceback = traceback.format_exc()
-        print(f"Error processing base64 image: {str(e)}\n{error_traceback}")
-        raise HTTPException(status_code=500, detail=f"Error processing image: {str(e)}")
-
-
-# Endpoint pentru interfața de testare
-@app.get("/test-ui", response_class=HTMLResponse)
-async def test_ui():
-    """Interfață simplă pentru testarea modelului"""
-    html_content = """
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Smart City AI - Test</title>
-        <style>
-            body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
-            .container { display: flex; gap: 20px; }
-            .left, .right { flex: 1; }
-            img { max-width: 100%; }
-            textarea { width: 100%; height: 300px; }
-            .button { background: #0066cc; color: white; border: none; padding: 10px 15px; cursor: pointer; }
-        </style>
-    </head>
-    <body>
-        <h1>Smart City AI - Testare model</h1>
-        <div class="container">
-            <div class="left">
-                <h2>Încarcă o imagine</h2>
-                <form id="uploadForm">
-                    <input type="number" id="problemId" placeholder="ID problemă" value="123" required><br><br>
-                    <input type="file" id="imageFile" accept="image/*"><br><br>
-                    <button type="submit" class="button">Procesează imaginea</button>
-                </form>
-                <div id="imagePreview" style="margin-top: 20px;"></div>
-            </div>
-            <div class="right">
-                <h2>Rezultate</h2>
-                <textarea id="results" readonly></textarea>
-            </div>
-        </div>
-
-        <script>
-            document.getElementById('uploadForm').addEventListener('submit', async function(e) {
-                e.preventDefault();
-
-                const fileInput = document.getElementById('imageFile');
-                const problemId = document.getElementById('problemId').value;
-                const resultsArea = document.getElementById('results');
-
-                if (!fileInput.files[0]) {
-                    alert('Te rog selectează o imagine');
-                    return;
-                }
-
-                // Afișează previzualizarea imaginii
-                const preview = document.getElementById('imagePreview');
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    preview.innerHTML = `<img src="${e.target.result}" alt="Preview">`;
-                };
-                reader.readAsDataURL(fileInput.files[0]);
-
-                // Convertește imaginea în base64
-                const file = fileInput.files[0];
-                const base64 = await convertToBase64(file);
-                const base64Data = base64.split(',')[1];
-
-                // Trimite cererea
-                resultsArea.value = 'Se procesează...';
-
-                try {
-                    const response = await fetch('/process-base64', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            problemId: parseInt(problemId),
-                            image: base64Data
-                        })
-                    });
-
-                    const data = await response.json();
-                    resultsArea.value = JSON.stringify(data, null, 2);
-                } catch (error) {
-                    resultsArea.value = `Eroare: ${error.message}`;
-                }
-            });
-
-            function convertToBase64(file) {
-                return new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onload = () => resolve(reader.result);
-                    reader.onerror = error => reject(error);
-                    reader.readAsDataURL(file);
-                });
-            }
-        </script>
-    </body>
-    </html>
+@app.post("/analyze")
+async def analyze_problem_image(file: UploadFile = File(...)):
     """
-    return HTMLResponse(content=html_content)
+    Endpoint pentru analiza imaginilor cu probleme urbane.
+    Primește o imagine și o analizează pentru a detecta probleme urbane.
+    """
+    try:
+        # Verificăm dacă fișierul este o imagine
+        if not file.content_type.startswith("image/"):
+            raise HTTPException(status_code=400, detail="Fișierul trimis nu este o imagine")
 
+        # Citim conținutul fișierului
+        contents = await file.read()
+
+        # Analizăm imaginea
+        result = await analyze_image(contents)
+
+        # Adăugăm timestamp pentru procesare
+        result["processed_at"] = datetime.now().isoformat()
+
+        return result
+
+    except Exception as e:
+        logger.error(f"Eroare la procesarea imaginii: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Eroare la procesarea imaginii: {str(e)}")
+
+@app.post("/analyze/file_path")
+async def analyze_problem_image_from_path(file_path: str):
+    """
+    Endpoint pentru testare - analizează o imagine folosind calea locală.
+    IMPORTANT: Doar pentru testare, nu utilizați în producție.
+    """
+    try:
+        if not os.path.exists(file_path):
+            raise HTTPException(status_code=404, detail=f"Fișierul {file_path} nu a fost găsit")
+
+        with open(file_path, "rb") as image_file:
+            contents = image_file.read()
+
+        result = await analyze_image(contents)
+        result["processed_at"] = datetime.now().isoformat()
+
+        return result
+
+    except Exception as e:
+        logger.error(f"Eroare la procesarea imaginii locale: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Eroare la procesarea imaginii: {str(e)}")
 
 if __name__ == "__main__":
-    import uvicorn
-
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    # Rulează aplicația cu Uvicorn când este executată direct
+    uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True)

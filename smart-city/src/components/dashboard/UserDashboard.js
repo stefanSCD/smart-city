@@ -1,7 +1,3 @@
-
-// Modificări pentru UserDashboard.js - Prima parte
-
-// Modificarea importurilor și gestionarea logout
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom'; // Adaugă acest import
 import LocationMap from '../LocationMap';
@@ -23,8 +19,7 @@ import {
 } from 'lucide-react';
 import { logout } from '../../services/authService';
 import { 
-  getUserData, 
-  getUserNotifications, 
+  getUserData,  
   getUserRecentReports, 
   updateUserProfile, 
   uploadProfileImage, 
@@ -32,9 +27,8 @@ import {
 } from '../../services/userService';
 
 const UserDashboard = () => {
-  const navigate = useNavigate(); // Adăugăm hook-ul de navigare
+  const navigate = useNavigate(); 
   
-  // Restul stării componentei rămâne neschimbat
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeSection, setActiveSection] = useState('dashboard');
   const [problemType, setProblemType] = useState('');
@@ -47,19 +41,15 @@ const UserDashboard = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [problems, setProblems] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [userNotifications, setUserNotifications] = useState([]);
   const [userRecentReports, setUserRecentReports] = useState([]);
   const [userDataLoading, setUserDataLoading] = useState(true);
 
-  // Pentru secțiunea Account Settings
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [emailNotifications, setEmailNotifications] = useState(true);
-  const [pushNotifications, setPushNotifications] = useState(true);
 
-  // Pentru gestionarea parolelor
+
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -67,8 +57,7 @@ const UserDashboard = () => {
     name: "",
     email: "",
     avatar: "",
-    recentReports: [],
-    notifications: []
+    recentReports: []
   });
   
   // Funcția modificată pentru logout
@@ -222,18 +211,15 @@ const submitReport = async () => {
   try {
     setIsSubmitting(true);
     
-    // Obține ID-ul utilizatorului din datele autentificate
     const userInfo = JSON.parse(localStorage.getItem('user') || '{}');
     const userId = userInfo.id || userData?.id;
     
-    // Verifică dacă avem un tip de problemă selectat
     if (!problemType) {
       alert('Vă rugăm să selectați un tip de problemă.');
       setIsSubmitting(false);
       return;
     }
     
-    // Verifică dacă userId este un UUID valid (format corect)
     const isValidUUID = userId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
     
     const problemData = {
@@ -244,13 +230,11 @@ const submitReport = async () => {
       longitude: location ? parseFloat(location.lng.toFixed(6)) : null,
       category: (problemType || 'general').toLowerCase().replace(/\s+/g, '_'),
       status: 'reported',
-      // Trimite userId doar dacă este un UUID valid
       reported_by: isValidUUID ? userId : null
     };
     
     console.log('Submitting detailed report:', problemData);
     
-    // Adăugăm media dacă există
     let createdProblem;
     if (uploadedMedia) {
       createdProblem = await createProblem(problemData, uploadedMedia);
@@ -579,28 +563,6 @@ const submitReport = async () => {
           </div>
         ) : (
           <p className="text-gray-500">No reports yet.</p>
-        )}
-      </div>
-      
-      <div className="bg-white rounded-xl shadow-lg p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-gray-800">Notifications</h2>
-          <span className="text-sm text-blue-600 cursor-pointer hover:underline">View all</span>
-        </div>
-        
-        {userNotifications.length > 0 ? (
-        <div className="space-y-4">
-          {userNotifications.map((notification) => (
-            <div key={notification.id} className={`p-3 border-l-4 ${notification.isRead ? 'border-gray-300 bg-gray-50' : 'border-blue-500 bg-blue-50'} rounded`}>
-              <div className="flex justify-between">
-                <p className="text-sm text-gray-700">{notification.message}</p>
-                <span className="text-xs text-gray-500">{notification.date}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-        ) : (
-          <p className="text-gray-500">No notifications.</p>
         )}
       </div>
     </div>

@@ -4,6 +4,12 @@ import { useNavigate } from 'react-router-dom';
 import { updateProblem } from '../../services/problemService';
 import { logout } from '../../services/authService';
 import { 
+  getUserData,  
+  uploadProfileImage, 
+  updateUserProfile, 
+  changePassword 
+} from '../../services/userService';
+import { 
   User,
   Clock, 
   LogOut, 
@@ -56,7 +62,7 @@ const EmployeeDashboard = () => {
       setUserDataLoading(true);
       
       // 1. Încărcăm profilul angajatului
-      const profileData = await employeeService.getEmployeeProfile();
+      const profileData = await getUserData();
       setUserData(profileData);
       
       // Setăm numele și prenumele pentru formular
@@ -134,13 +140,11 @@ const EmployeeDashboard = () => {
           return;
         }
         
-        const result = await employeeService.uploadEmployeeAvatar(file);
+        const updatedUser = await uploadProfileImage(file);
+
         
         // Actualizăm userData cu noua cale către imagine
-        setUserData(prev => ({
-          ...prev,
-          avatar: result.avatarPath
-        }));
+        setUserData(updatedUser);
         
         alert('Imaginea de profil a fost încărcată cu succes!');
       } catch (error) {
@@ -190,23 +194,21 @@ const EmployeeDashboard = () => {
   };
 
   const handleSaveProfile = async () => {
-    try {
-      const updatedUserData = {
-        nume: lastName,
-        prenume: firstName,
-        email: email,
-        phone: phone,
-      };
-      
-      const updatedProfile = await employeeService.updateEmployeeProfile(updatedUserData);
-      setUserData(updatedProfile);
-      alert('Profilul a fost actualizat cu succes!');
-    } catch (error) {
-      console.error('Eroare la actualizarea profilului:', error);
-      alert('Actualizarea profilului a eșuat. Vă rugăm să încercați din nou.');
-    }
-  };
-
+  try {
+    const updatedUserData = {
+      name: `${firstName} ${lastName}`,
+      email: email,
+      phone: phone,
+    };
+    
+    const updatedProfile = await updateUserProfile(updatedUserData);
+    setUserData(updatedProfile);
+    alert('Profilul a fost actualizat cu succes!');
+  } catch (error) {
+    console.error('Eroare la actualizarea profilului:', error);
+    alert('Actualizarea profilului a eșuat. Vă rugăm să încercați din nou.');
+  }
+};
   const handleChangePassword = async () => {
     if (newPassword !== confirmPassword) {
       alert('Parolele noi nu coincid');
@@ -214,10 +216,10 @@ const EmployeeDashboard = () => {
     }
     
     try {
-      await employeeService.changeEmployeePassword({
-        oldPassword: currentPassword,
-        newPassword: newPassword
-      });
+      await changePassword({
+      oldPassword: currentPassword,
+      newPassword: newPassword
+    });
       
       // Resetează câmpurile
       setCurrentPassword('');
@@ -808,57 +810,6 @@ const EmployeeDashboard = () => {
           </div>
         </div>
         
-        {/* Preferințe notificări */}
-        <div className="pt-6 border-t border-gray-200">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Preferințe Notificări</h3>
-          <div className="space-y-3">
-            <div className="flex items-start">
-              <div className="flex items-center h-5">
-                <input 
-                  type="checkbox" 
-                  id="email-notifications"
-                  className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                  checked={emailNotifications}
-                  onChange={(e) => setEmailNotifications(e.target.checked)}
-                />
-              </div>
-              <div className="ml-3 text-sm">
-                <label htmlFor="email-notifications" className="font-medium text-gray-700">Notificări prin email</label>
-                <p className="text-gray-500">Primiți notificări când statutul unei probleme se schimbă</p>
-              </div>
-            </div>
-            
-            <div className="flex items-start">
-              <div className="flex items-center h-5">
-                <input 
-                  type="checkbox" 
-                  id="push-notifications"
-                  className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                  checked={pushNotifications}
-                  onChange={(e) => setPushNotifications(e.target.checked)}
-                />
-              </div>
-              <div className="ml-3 text-sm">
-                <label htmlFor="push-notifications" className="font-medium text-gray-700">Notificări push</label>
-                <p className="text-gray-500">Primiți notificări push pe dispozitivul dvs.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        {/* Despre aplicație */}
-        <div className="pt-6 border-t border-gray-200">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Despre</h3>
-          <div className="bg-gray-50 p-4 rounded-md">
-            <p className="text-sm text-gray-600">Smart City - Aplicație Angajați v1.0.0</p>
-            <p className="text-sm text-gray-600 mt-1">© 2025 Smart City</p>
-            <div className="mt-3">
-              <a href="#" className="text-sm text-blue-600 hover:underline">Termeni și Condiții</a>
-              <span className="mx-2 text-gray-400">|</span>
-              <a href="#" className="text-sm text-blue-600 hover:underline">Politica de Confidențialitate</a>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );
@@ -954,40 +905,6 @@ const EmployeeDashboard = () => {
                 Deconectare
               </button>
             </nav>
-            
-            <div className="mt-6 bg-white shadow rounded-lg p-4">
-              <h3 className="text-sm font-medium text-gray-700 mb-3">Probleme active</h3>
-              {loading ? (
-                <p className="text-gray-500 text-sm">Se încarcă problemele...</p>
-              ) : (
-                <div className="space-y-3">
-                  {problems
-                    .filter(item => {
-                      const problem = item.problem || item;
-                      return problem.status === 'in_progress' || problem.status === 'assigned' || problem.status === 'reported';
-                    })
-                    .slice(0, 5)
-                    .map(item => {
-                      const problem = item.problem || item;
-                      return (
-                        <div 
-                          key={item.id}
-                          className="flex items-center p-2 hover:bg-gray-50 rounded cursor-pointer"
-                          onClick={() => handleProblemClick(item)}
-                        >
-                          <span className="text-xl mr-2">{getProblemIcon(problem.category || problem.type)}</span>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900 truncate">{problem.title || problem.type}</p>
-                            <p className="text-xs text-gray-500 truncate">{problem.location}</p>
-                          </div>
-                          <ChevronRight size={16} className="text-gray-400" />
-                        </div>
-                      );
-                    })
-                  }
-                </div>
-              )}
-            </div>
           </div>
           
           {/* Mobile menu */}
